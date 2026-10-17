@@ -56,7 +56,7 @@ type Segment =
 /** A parsed suffix template. */
 export type Template = readonly Segment[];
 
-const TEMPLATE_TOKEN = /\((?<optional>[yns]|I)\)|(?<symbol>[AID])|(?<literal>[a-zçğıöşü ]+)/gy;
+const TEMPLATE_TOKEN = /\(([yns])\)|\((I)\)|([AID])|([a-zçğıöşü ]+)/gy;
 
 /**
  * Parses a template such as `(y)A` or `DAn`.
@@ -68,11 +68,11 @@ export function template(source: string): Template {
   TEMPLATE_TOKEN.lastIndex = 0;
   let consumed = 0;
   for (let match = TEMPLATE_TOKEN.exec(source); match; match = TEMPLATE_TOKEN.exec(source)) {
-    const { optional, symbol, literal } = match.groups ?? {};
-    if (optional === 'I') segments.push({ kind: 'linking' });
-    else if (optional !== undefined) segments.push({ kind: 'buffer', letter: optional });
+    const [, buffer, linking, symbol, literal] = match;
+    if (buffer !== undefined) segments.push({ kind: 'buffer', letter: buffer });
+    else if (linking !== undefined) segments.push({ kind: 'linking' });
     else if (symbol === 'A' || symbol === 'I' || symbol === 'D') segments.push({ kind: symbol });
-    else if (literal !== undefined) segments.push({ kind: 'literal', text: literal });
+    else segments.push({ kind: 'literal', text: literal ?? '' });
     consumed = TEMPLATE_TOKEN.lastIndex;
   }
   if (consumed !== source.length) throw new Error(`Malformed suffix template: ${source}`);
@@ -181,13 +181,8 @@ function soften(word: string): string {
   return word.slice(0, -1) + (last === lower ? soft : toUpper(soft));
 }
 
-/** Removes the vowel of the last syllable of a written word (ağız → ağz). */
-function dropLastVowel(word: string): string {
-  for (let index = word.length - 1; index >= 0; index--) {
-    if (isVowel(phonological(word.charAt(index)))) return word.slice(0, index) + word.slice(index + 1);
-  }
-  return word;
-}
+/** The last vowel of a written word, in either case, with or without a circumflex. */
+const LAST_WRITTEN_VOWEL = /[aeıioöuüâîûAEIİOÖUÜÂÎÛ](?=[^aeıioöuüâîûAEIİOÖUÜÂÎÛ]*$)/u;
 
 /**
  * The form a common noun takes before a vowel-initial suffix: vowel drop, then softening,
@@ -197,7 +192,8 @@ function dropLastVowel(word: string): string {
  * @param syllables - Syllable count of the word before any change.
  */
 export function vowelStem(word: string, entry: LexiconEntry | undefined, syllables: number): string {
-  let stem = entry?.dropVowel === true ? dropLastVowel(word) : word;
+  // ağız → ağz-ı: drop the vowel of the last syllable.
+  let stem = entry?.dropVowel === true ? word.replace(LAST_WRITTEN_VOWEL, '') : word;
   const finalLetter = toLower(stem.slice(-1));
   if (entry?.soften ?? softensByDefault(finalLetter, syllables)) stem = soften(stem);
   if (entry?.doubleConsonant === true) stem += stem.slice(-1);
@@ -211,6 +207,7 @@ export function vowelStem(word: string, entry: LexiconEntry | undefined, syllabl
 export function attachToWord(word: string, segments: Template, entry?: LexiconEntry): string {
   const form = phonological(word);
   const sound = soundOf(form, entry?.front ?? false);
+  /* v8 ignore next -- only called with Turkish number words, which all contain vowels */
   if (sound === undefined) throw new Error(`Cannot harmonise a word without vowels: ${word}`);
   const { text } = render(segments, sound);
   const stem = startsWithVowel(text) ? vowelStem(word, entry, syllableCount(form)) : word;

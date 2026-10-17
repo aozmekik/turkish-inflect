@@ -118,31 +118,26 @@ const MARKER_SUFFIXES: readonly CanonicalSuffix[] = [
 
 const VOWELS = ['a', 'e', 'ı', 'i', 'o', 'ö', 'u', 'ü'] as const;
 
-/** Every written form each suffix can take, longest first. */
-function surfaceForms(): ReadonlyMap<CanonicalSuffix, readonly string[]> {
-  const forms = new Map<CanonicalSuffix, readonly string[]>();
-  for (const suffix of MARKER_SUFFIXES) {
-    const spec = specOf(suffix);
-    const variants = new Set<string>(suffix === 'ki' ? ['kü'] : []);
-    for (const segments of [spec.template, spec.pronominal ?? spec.template]) {
-      for (const lastVowel of VOWELS) {
-        for (const endsInVowel of [true, false]) {
-          for (const voiceless of [true, false]) {
-            const sound: Sound = { lastVowel, endsInVowel, voiceless, front: false, bufferY: false };
-            variants.add(render(segments, sound).text);
-          }
+/** Every written form a suffix can take, longest first. */
+function surfaceForms(suffix: CanonicalSuffix): readonly string[] {
+  const spec = specOf(suffix);
+  const variants = new Set<string>(suffix === 'ki' ? ['kü'] : []);
+  for (const segments of [spec.template, spec.pronominal ?? spec.template]) {
+    for (const lastVowel of VOWELS) {
+      for (const endsInVowel of [true, false]) {
+        for (const voiceless of [true, false]) {
+          const sound: Sound = { lastVowel, endsInVowel, voiceless, front: false, bufferY: false };
+          variants.add(render(segments, sound).text);
         }
       }
     }
-    forms.set(
-      suffix,
-      [...variants].sort((a, b) => b.length - a.length),
-    );
   }
-  return forms;
+  return [...variants].sort((a, b) => b.length - a.length);
 }
 
-const SURFACES = surfaceForms();
+const SURFACES: readonly (readonly [CanonicalSuffix, readonly string[]])[] = MARKER_SUFFIXES.map(
+  (suffix) => [suffix, surfaceForms(suffix)] as const,
+);
 
 function isValidChain(chain: readonly CanonicalSuffix[]): boolean {
   try {
@@ -162,8 +157,8 @@ function isValidChain(chain: readonly CanonicalSuffix[]): boolean {
 export function parseSuffixMarker(letters: string): CanonicalSuffix[] | undefined {
   const search = (position: number, chain: CanonicalSuffix[]): CanonicalSuffix[] | undefined => {
     if (position === letters.length) return chain;
-    for (const suffix of MARKER_SUFFIXES) {
-      for (const form of SURFACES.get(suffix) ?? []) {
+    for (const [suffix, forms] of SURFACES) {
+      for (const form of forms) {
         if (!letters.startsWith(form, position)) continue;
         const next = [...chain, suffix];
         if (!isValidChain(next)) continue;

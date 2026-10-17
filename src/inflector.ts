@@ -142,5 +142,5 @@ export function createInflector(config: InflectorConfig = {}): Inflector {
     return { text, kind, reading, apostrophe };
   };
 
-  return { inflect, analyze, format: createFormat(inflect), tr: createTag(inflect) };
+  return { inflect, analyze, format: createFormat(inflect), tr: createTag(inflect, defaults) };
 }

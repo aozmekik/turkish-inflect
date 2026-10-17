@@ -127,7 +127,7 @@ export function normalizeChain(input: SuffixInput): CanonicalSuffix[] {
   const chain: CanonicalSuffix[] = [];
   let position = -1;
   let afterKi = false;
-  let previous: CanonicalSuffix | undefined;
+  let previous: CanonicalSuffix | 'start' = 'start';
   for (const name of list) {
     if (!KNOWN.has(name)) {
       throw new InflectError(
@@ -141,11 +141,11 @@ export function normalizeChain(input: SuffixInput): CanonicalSuffix[] {
     if (afterKi && slot === 'plural') index = 5;
     if (afterKi && slot === 'case') index = 6;
     const kiMisplaced =
-      slot === 'ki' && previous !== undefined && previous !== 'locative' && previous !== 'genitive';
+      slot === 'ki' && previous !== 'start' && previous !== 'locative' && previous !== 'genitive';
     if (index <= position || kiMisplaced || (previous === 'ile' && slot !== 'question')) {
       throw new InflectError(
         'INVALID_SUFFIX_ORDER',
-        `"${name}" cannot follow ${previous === undefined ? 'the start' : `"${previous}"`} in [${list.join(', ')}]. ` +
+        `"${name}" cannot follow "${previous}" in [${list.join(', ')}]. ` +
           'Suffixes combine in the order ordinal, plural, possessive, case, ki (after locative or genitive), plural, case, copula, question.',
       );
     }

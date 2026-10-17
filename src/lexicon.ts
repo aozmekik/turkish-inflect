@@ -200,7 +200,6 @@ const SOFTENING = [
   'umut',
   'ümit',
   'üstat',
-  'vaat',
   'vücut',
   'yiğit',
   'yoğurt',
@@ -313,6 +312,7 @@ const DEFAULT_WORDS: Readonly<Record<string, LexiconEntry>> = {
   iştirak: { front: true, soften: false },
   had: { front: true, doubleConsonant: true },
   mahal: { front: true, doubleConsonant: true },
+  vaat: { front: true, soften: true },
   ret: { soften: true, doubleConsonant: true },
   tıp: { soften: true, doubleConsonant: true },
   zıt: { soften: true, doubleConsonant: true },
@@ -320,11 +320,11 @@ const DEFAULT_WORDS: Readonly<Record<string, LexiconEntry>> = {
   akit: { dropVowel: true, soften: true },
   kayıt: { dropVowel: true, soften: true },
   su: { bufferY: true },
-  // Homographs written with a circumflex that are regular, unlike their plain twins.
+  // Homographs written with a circumflex that differ from their plain twins.
   âdet: {},
   âkit: {},
   emîr: {},
-  hâk: {},
+  hâk: { front: true },
   metîn: {},
   nâkil: {},
 };
@@ -394,6 +394,20 @@ const DEFAULT_READINGS: Readonly<Record<string, string>> = {
   'vb.': 've benzeri',
   'vs.': 'vesaire',
 };
+
+function freeze<T extends object>(record: T): Readonly<T> {
+  for (const value of Object.values(record)) if (typeof value === 'object') Object.freeze(value);
+  return Object.freeze(record);
+}
+
+/**
+ * The built-in lexicon, read-only. Pass additions or overrides to `createInflector`; this
+ * export is for inspecting what the defaults cover.
+ */
+export const DEFAULT_LEXICON: Lexicon = Object.freeze({
+  words: freeze({ ...DEFAULT_WORDS }),
+  readings: freeze({ ...DEFAULT_READINGS }),
+});
 
 /** One-letter symbols that are only read as units right after a number. */
 export const UNIT_AFTER_NUMBER_ONLY: ReadonlySet<string> = new Set(['g', 'm']);

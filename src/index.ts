@@ -29,7 +29,7 @@ import type { TemplateValue, TemplateValues } from './template.js';
 export { capitalize, toLower, toUpper } from './casing.js';
 export { InflectError, type InflectErrorCode } from './errors.js';
 export { createInflector, type InflectDefaults, type Inflector, type InflectorConfig } from './inflector.js';
-export type { Lexicon, LexiconEntry } from './lexicon.js';
+export { DEFAULT_LEXICON, type Lexicon, type LexiconEntry } from './lexicon.js';
 export { numberToWords, ordinal, type NumberToWordsOptions, type NumericInput } from './numbers.js';
 export { SUFFIXES, type Suffix, type SuffixInput } from './suffixes.js';
 export type { ValueWithOptions, TemplateValue, TemplateValues } from './template.js';
