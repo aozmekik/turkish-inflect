@@ -1,0 +1,52 @@
+# Rules and sources
+
+Every rule the library applies, where it comes from, and which corpus section tests it. "YK" is
+TDK's online [Yazım Kılavuzu](https://yazim.tdk.gov.tr/) (spelling guide); "GTS" is TDK
+[Güncel Türkçe Sözlük](https://sozluk.gov.tr/) (dictionary), whose headwords carry an inflection
+hint such as "kitap, -bı". Corpus files are in [`test/corpus/`](../test/corpus/).
+
+## Sound rules
+
+| Rule                   | Behaviour                                                                                                                                                                                  | Source                                                                                                                                   | Corpus          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Two-way harmony        | `A` → a after a back vowel (a ı o u), e after a front vowel (e i ö ü): duvarda, evde                                                                                                       | YK, Sesler ve Ses Uyumları: Büyük Ünlü Uyumu                                                                                             | `harmony.ts`    |
+| Four-way harmony       | `I` → ı / i / u / ü by backness and rounding: kızı, evi, yolu, gözü                                                                                                                        | YK, Küçük Ünlü Uyumu                                                                                                                     | `harmony.ts`    |
+| Palatal finals         | Some back-vowel loans take front suffixes: saat → saate, gol → golü, kontrol → kontrolü                                                                                                    | YK, Büyük Ünlü Uyumu (alkol, hakikat, helal, idrak, kabul, kontrol, protokol, saat, sadakat, santral; meçhul, mentol, sembol); GTS hints | `lexical.ts`    |
+| Consonant assimilation | Suffix-initial d → t after f s t k ç ş h p: kitapta, Ahmet'ten, 5'te                                                                                                                       | YK, Ünsüz Uyumu (çiçek-ten, yol-da)                                                                                                      | `consonants.ts` |
+| Buffer letters         | y before -ı, -a, -la after a vowel (arabayı, arabaya, arabayla); n before the genitive (arabanın); s before the 3rd-person possessive (arabası)                                            | YK, Bazı Kelime ve Eklerin Yazılışı (arkadaşı-y-la); standard grammar                                                                    | `harmony.ts`    |
+| Pronominal n           | After a 3rd-person possessive or -ki, case suffixes take n: kitabına, evdekini; `compound: true` for names that already end in one (Avrupa Birliği'ne)                                     | YK, Kesme İşareti 1 (Kurtuluş Savaşı'nı, Avrupa Birliği'ne)                                                                              | `morphology.ts` |
+| Softening              | Final p ç t k (g) of common nouns becomes b c d ğ/g before a vowel: kitabı, ağacı, kanadı, çocuğu, rengi, kataloğu. Default: words of 2+ syllables ending in p ç k g; lexicon for the rest | YK, Ünsüz Yumuşaması; GTS hints                                                                                                          | `consonants.ts` |
+| No softening           | One-syllable words (top, saç, at, et), listed loans (ahlak, hukuk, sepet, tank), -t words by default (devlet, paket)                                                                       | YK, Ünsüz Yumuşaması (ak … süt; anıt, bulut, kanıt, ölçüt; UYARI list)                                                                   | `consonants.ts` |
+| Proper nouns           | Never softened in writing: Ahmet'i, Tokat'a, Zonguldak'ı (read Ahmedi, Tokada, Zonguldağı)                                                                                                 | YK, Kesme İşareti, UYARI                                                                                                                 | `consonants.ts` |
+| Vowel drop             | ağız → ağzı, isim → ismi, şehir → şehre (only before a vowel: şehirde)                                                                                                                     | YK, Ünlü Düşmesi; GTS hints                                                                                                              | `lexical.ts`    |
+| Consonant doubling     | hak → hakkı, tıp → tıbbı, ret → reddi                                                                                                                                                      | YK, Ünsüz Türemesi; GTS hints                                                                                                            | `lexical.ts`    |
+| su                     | su → suyu, suya, suyun                                                                                                                                                                     | GTS (su, -yu)                                                                                                                            | `lexical.ts`    |
+
+## Writing rules
+
+| Rule                             | Behaviour                                                                                   | Source                                                         | Corpus                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------- |
+| Apostrophe after proper nouns    | Before case, possessive and copula: Ankara'da, Atatürk'üm, Ankara'dır                       | YK, Kesme İşareti 1                                            | `harmony.ts`               |
+| No apostrophe before the plural  | Ahmetler, Yakup Kadriler, Türklerin; also for what follows the plural (Ahmetlerden)         | YK, Kesme İşareti, UYARI                                       | `morphology.ts`            |
+| Institution names                | No apostrophe: Türk Dil Kurumundan, Bakanlar Kurulunun. Use `kind: 'common'`                | YK, Kesme İşareti, UYARI                                       | `morphology.ts`            |
+| Titles and dates                 | Nihat Bey'e, 17 Aralık'a                                                                    | YK, Kesme İşareti 2 and 5                                      | `morphology.ts`            |
+| Numbers                          | Apostrophe, suffix from the reading: 1985'te, 2026'ya, 1.000.000'a, 40'ta                   | YK, Kesme İşareti 4                                            | `numbers.ts`               |
+| Ordinals                         | 15'inci, 56'ncı, 2'nci; a period and an apostrophe are never combined (8'inci, not 8.'inci) | YK, Sayıların Yazılışı 9                                       | `numbers.ts`               |
+| Decimals, fractions, times       | 3,5'e; 4/8'i (dört bölü sekizi), 1/2'si; 17.30'da, 11.00'de                                 | YK, Sayıların Yazılışı 1, 8, 11                                | `numbers.ts`               |
+| Capital abbreviations            | Suffix of the last letter's name: TBMM'ye, TDK'den, THY'de, TL'nin                          | YK, Kısaltmalar; Kesme İşareti 3                               | `abbreviations.ts`         |
+| Acronyms read as words           | Suffix of the reading: NATO'dan, UNESCO'ya, ASELSAN'da, BOTAŞ'ın                            | YK, Kısaltmalar                                                | `abbreviations.ts`         |
+| Hard consonants in abbreviations | Not softened: RTÜK'e, AGİK'in                                                               | YK, Kısaltmalar                                                | `abbreviations.ts`         |
+| Lower-case symbols               | Suffix of the full word: cm'yi, kg'dan, mm'den                                              | YK, Kısaltmalar                                                | `abbreviations.ts`         |
+| Dotted abbreviations             | Suffix of the full word, no apostrophe: Alm.dan, İng.yi, kr.un                              | YK, Kısaltmalar                                                | `abbreviations.ts`         |
+| Letters                          | Suffix of the letter's name: a'dan z'ye                                                     | YK, Kesme İşareti 7; letter names from YK, Ses, Harf ve Alfabe | `abbreviations.ts`         |
+| -ki                              | Invariant (akşamki, duvardaki, yarınki) except bugünkü, dünkü, öbürkü                       | YK, -ki Eki ve Ünlü Uyumu                                      | `morphology.ts`            |
+| Question particle                | A separate word that harmonises: Ayşe mi, Bolu mu, 100 mü                                   | YK, Soru Eki mı'nın Yazılışı                                   | `harmony.ts`, `numbers.ts` |
+| ile                              | Separate (Ayşe ile) or attached as -(y)la (Ayşe'yle, bulutla)                               | YK, Bazı Kelime ve Eklerin Yazılışı                            | `morphology.ts`            |
+
+## Reading numbers
+
+Numbers are written as separate words, 100 and 1000 without "bir" (yüz, bin), larger scales with
+it (bir milyon). Scale words go up to kentilyon (10^18), the largest in GTS, so integers up to
+10^21 − 1 can be read. Decimals are read with "virgül" (üç virgül beş) or, with
+`decimal: 'tam'`, as fractions (beş tam yüzde yirmi altı, YK Sayıların Yazılışı 8). The suffix
+only depends on the last word, which is the same in both readings.

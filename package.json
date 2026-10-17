@@ -59,8 +59,8 @@
     "size": "node scripts/size.ts",
     "examples": "node scripts/run-examples.ts",
     "check:package": "publint --strict && attw --pack . --profile node16",
-    "check:tdk": "node scripts/check-tdk.ts",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run coverage && npm run build && npm run check:package && npm run examples"
+    "check:tdk": "vitest run --config vitest.tdk.config.ts",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run coverage && npm run build && npm run check:package && npm run examples && npm run size"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
