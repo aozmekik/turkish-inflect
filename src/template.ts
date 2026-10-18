@@ -5,9 +5,10 @@
  * @module
  */
 
+import { phonological } from './alphabet.js';
 import type { InflectOptions, InflectValue } from './analysis.js';
 import { InflectError } from './errors.js';
-import { type Sound, render } from './phonology.js';
+import { type Sound, type Template, render, soundOf, template } from './phonology.js';
 import { type CanonicalSuffix, type Suffix, normalizeChain, specOf } from './suffixes.js';
 import { checkObject, checkString, describe } from './validate.js';
 
@@ -55,7 +56,12 @@ function unpack(raw: unknown, options: InflectOptions, where: string): [InflectV
   return [value, { ...options, ...own }];
 }
 
-const PLACEHOLDER = /^\s*([A-Za-z_$][\w$]*)\s*(?::([^{}]*))?$/u;
+/**
+ * `{name}` or `{name:suffix+suffix}`. Names are JavaScript-style identifiers in any script
+ * ({şehir}), optionally joined by dots ({user.name}); a dotted name is one key of `values`.
+ */
+const PLACEHOLDER =
+  /^\s*([\p{ID_Start}_$][\p{ID_Continue}$]*(?:\.[\p{ID_Start}_$][\p{ID_Continue}$]*)*)\s*(?::([^{}]*))?$/u;
 
 /**
  * Creates `format` bound to an `inflect` implementation.
@@ -121,7 +127,11 @@ export function createFormat(
   };
 }
 
-/** Suffixes recognised after a value in a tagged template, in order of preference. */
+/**
+ * Suffixes recognised after a value in a tagged template, in order of preference: an ambiguous
+ * form is read as the earlier suffix (-ı as accusative rather than 3rd-person possessive, -ın as
+ * genitive rather than 2nd-person possessive).
+ */
 const MARKER_SUFFIXES: readonly CanonicalSuffix[] = [
   'accusative',
   'dative',
@@ -134,30 +144,56 @@ const MARKER_SUFFIXES: readonly CanonicalSuffix[] = [
   'ki',
   'ordinal',
   'copula',
+  'possessive1sg',
+  'possessive2sg',
+  'possessive1pl',
+  'possessive2pl',
+  'possessive3pl',
 ];
 
 const VOWELS = ['a', 'e', 'ı', 'i', 'o', 'ö', 'u', 'ü'] as const;
 
-/** Every written form a suffix can take, longest first. */
-function surfaceForms(suffix: CanonicalSuffix): readonly string[] {
-  const spec = specOf(suffix);
-  const variants = new Set<string>(suffix === 'ki' ? ['kü'] : []);
-  for (const segments of [spec.template, spec.pronominal ?? spec.template]) {
-    for (const lastVowel of VOWELS) {
-      for (const endsInVowel of [true, false]) {
-        for (const voiceless of [true, false]) {
-          const sound: Sound = { lastVowel, endsInVowel, voiceless, front: false, bufferY: false };
-          variants.add(render(segments, sound).text);
-        }
+/** Every written form of a template, after every kind of word. */
+function variants(segments: Template): Set<string> {
+  const forms = new Set<string>();
+  for (const lastVowel of VOWELS) {
+    for (const endsInVowel of [true, false]) {
+      for (const voiceless of [true, false]) {
+        const sound: Sound = { lastVowel, endsInVowel, voiceless, front: false, bufferY: false };
+        forms.add(render(segments, sound).text);
       }
     }
   }
-  return [...variants].sort((a, b) => b.length - a.length);
+  return forms;
 }
 
-const SURFACES: readonly (readonly [CanonicalSuffix, readonly string[]])[] = MARKER_SUFFIXES.map(
-  (suffix) => [suffix, surfaceForms(suffix)] as const,
-);
+/** A written form of a suffix; `pronominal` when only the pronominal-n form spells it. */
+interface Surface {
+  readonly text: string;
+  readonly pronominal: boolean;
+}
+
+/** Every written form a suffix can take, longest first. */
+function surfaceForms(suffix: CanonicalSuffix): readonly Surface[] {
+  const spec = specOf(suffix);
+  const forms = new Map<string, boolean>();
+  for (const text of variants(spec.template)) forms.set(text, false);
+  if (suffix === 'ki') forms.set('kü', false);
+  if (spec.pronominal !== undefined) {
+    for (const text of variants(spec.pronominal)) if (!forms.has(text)) forms.set(text, true);
+  }
+  return [...forms]
+    .map(([text, pronominal]) => ({ text, pronominal }))
+    .sort((a, b) => b.text.length - a.text.length);
+}
+
+let surfaces: readonly (readonly [CanonicalSuffix, readonly Surface[]])[] | undefined;
+
+/** The written forms of every marker suffix, computed on the first use of `tr`. */
+function markerSurfaces(): readonly (readonly [CanonicalSuffix, readonly Surface[]])[] {
+  surfaces ??= MARKER_SUFFIXES.map((suffix) => [suffix, surfaceForms(suffix)] as const);
+  return surfaces;
+}
 
 function isValidChain(chain: readonly CanonicalSuffix[]): boolean {
   try {
@@ -168,32 +204,112 @@ function isValidChain(chain: readonly CanonicalSuffix[]): boolean {
   }
 }
 
+/** The result of {@link parseSuffixMarker}. */
+export interface SuffixMarker {
+  /** The suffixes, in order. */
+  readonly chain: CanonicalSuffix[];
+  /**
+   * The first suffix was written with the pronominal n ('nı, 'na, 'nda, 'ndan), which only
+   * follows a 3rd-person possessive: the value is a compound such as "Kurtuluş Savaşı".
+   */
+  readonly compound: boolean;
+}
+
 /**
  * Splits the letters written after a placeholder into suffixes, e.g. "daki" → locative + ki,
- * "lerden" → plural + ablative. Returns `undefined` when no valid chain spells them.
+ * "lerden" → plural + ablative, "ndan" → ablative after a compound. Returns `undefined` when
+ * no valid chain spells them.
  *
  * @internal
  */
-export function parseSuffixMarker(letters: string): CanonicalSuffix[] | undefined {
-  const search = (position: number, chain: CanonicalSuffix[]): CanonicalSuffix[] | undefined => {
-    if (position === letters.length) return chain;
-    for (const [suffix, forms] of SURFACES) {
+export function parseSuffixMarker(letters: string): SuffixMarker | undefined {
+  const search = (
+    position: number,
+    chain: CanonicalSuffix[],
+    compound: boolean,
+  ): SuffixMarker | undefined => {
+    if (position === letters.length) return { chain, compound };
+    for (const [suffix, forms] of markerSurfaces()) {
       for (const form of forms) {
-        if (!letters.startsWith(form, position)) continue;
+        if (!letters.startsWith(form.text, position)) continue;
         const next = [...chain, suffix];
         if (!isValidChain(next)) continue;
-        const found = search(position + form.length, next);
+        const found = search(
+          position + form.text.length,
+          next,
+          compound || (position === 0 && form.pronominal),
+        );
         if (found !== undefined) return found;
       }
     }
     return undefined;
   };
-  return letters === '' ? undefined : search(0, []);
+  return letters === '' ? undefined : search(0, [], false);
+}
+
+/**
+ * Endings the question particle can carry after its vowel, as templates: mıyım, mısın, mıyız,
+ * mısınız, mıdır, mıydı, mıydım, mıydın, mıydık, mıydınız, mıymış.
+ */
+const QUESTION_ENDINGS = [
+  'yIm',
+  'sIn',
+  'yIz',
+  'sInIz',
+  'dIr',
+  'ydI',
+  'ydIm',
+  'ydIn',
+  'ydIk',
+  'ydInIz',
+  'ymIş',
+];
+
+/** Written forms of the particle that are also ordinary words: "Ali müdür" (Ali is the director). */
+const NOT_A_QUESTION: ReadonlySet<string> = new Set(['müdür']);
+
+let questionForms: ReadonlyMap<string, Template> | undefined;
+
+/** Every written form of the question particle, mapped to the template of its ending. */
+function questionWords(): ReadonlyMap<string, Template> {
+  if (questionForms !== undefined) return questionForms;
+  const forms = new Map<string, Template>();
+  const endings = QUESTION_ENDINGS.map((ending) => template(ending));
+  for (const vowel of ['ı', 'i', 'u', 'ü'] as const) {
+    const particle = `m${vowel}`;
+    const sound: Sound = {
+      lastVowel: vowel,
+      endsInVowel: true,
+      voiceless: false,
+      front: false,
+      bufferY: false,
+    };
+    forms.set(particle, []);
+    for (const ending of endings) forms.set(particle + render(ending, sound).text, ending);
+  }
+  for (const word of NOT_A_QUESTION) forms.delete(word);
+  questionForms = forms;
+  return forms;
 }
 
 const APOSTROPHE_MARKER = /^(['’])([a-zçğıöşü]*)/u;
 const BARE_MARKER = /^[a-zçğıöşü]+/u;
-const QUESTION_MARKER = /^ (?:mı|mi|mu|mü)(?![\p{L}\p{M}])/u;
+const QUESTION_MARKER = /^ (m[ıiuü][\p{L}\p{M}]*)/u;
+const VOWEL = /[aeıioöuü]/u;
+
+/** The question particle at the start of `rest` (" mi", " misin", " mıydı"), if any. */
+function readQuestion(rest: string): { readonly length: number; readonly ending: Template } | undefined {
+  const match = QUESTION_MARKER.exec(rest);
+  const ending = match === null ? undefined : questionWords().get(match[1] ?? '');
+  return match === null || ending === undefined ? undefined : { length: match[0].length, ending };
+}
+
+/** Re-harmonises the ending of the question particle with the particle as it was inflected. */
+function questionEnding(inflected: string, ending: Template): string {
+  const sound = soundOf(phonological(inflected.slice(-2)));
+  /* v8 ignore next -- the particle always ends in a vowel */
+  return sound === undefined || ending.length === 0 ? '' : render(ending, sound).text;
+}
 
 /**
  * Creates the `tr` tagged template bound to an `inflect` implementation.
@@ -208,38 +324,63 @@ export function createTag(
     const literal = (index: number): string => strings[index] ?? strings.raw[index] ?? '';
     let out = literal(0);
     for (const [index, raw] of values.entries()) {
-      const [value, own] = unpack(raw, options, `Placeholder #${String(index + 1)}`);
+      const where = `Placeholder #${String(index + 1)}`;
+      const [value, unpacked] = unpack(raw, options, where);
+      let own = unpacked;
       let rest = literal(index + 1);
-      let chain: CanonicalSuffix[] = [];
+      let marker: SuffixMarker | undefined;
+      let written = '';
       let apostrophe: string | undefined;
       const marked = APOSTROPHE_MARKER.exec(rest);
       if (marked !== null && marked[2] !== '') {
         const [whole, mark = "'", letters = ''] = marked;
-        const parsed = parseSuffixMarker(letters);
-        if (parsed === undefined) {
+        marker = parseSuffixMarker(letters);
+        if (marker === undefined) {
           throw new InflectError(
             'TEMPLATE_SYNTAX',
-            `Cannot read "${whole}" after placeholder #${String(index + 1)} as Turkish suffixes.`,
+            `Cannot read "${whole}" after ${where} as Turkish suffixes.`,
           );
         }
-        chain = parsed;
+        written = whole;
         apostrophe = mark;
-        rest = rest.slice(whole.length);
       } else {
         const bare = BARE_MARKER.exec(rest)?.[0];
-        const parsed = bare === undefined ? undefined : parseSuffixMarker(bare);
-        if (bare !== undefined && parsed !== undefined) {
-          chain = parsed;
-          rest = rest.slice(bare.length);
+        // Letters without a vowel are units or symbols (5x, 10px, 100m), not suffixes.
+        if (bare !== undefined && VOWEL.test(bare)) {
+          marker = parseSuffixMarker(bare);
+          if (marker === undefined) {
+            throw new InflectError(
+              'TEMPLATE_SYNTAX',
+              `Cannot read "${bare}" after ${where} as Turkish suffixes. Write a suffix the tag recognises, or put a space or punctuation after the value.`,
+            );
+          }
+          written = bare;
         }
       }
-      const question = QUESTION_MARKER.exec(rest);
-      if (question !== null) {
+      rest = rest.slice(written.length);
+      const chain = marker === undefined ? [] : [...marker.chain];
+      const inferred = marker?.compound === true && own.compound === undefined;
+      if (inferred) own = { ...own, compound: true };
+      if (own.apostrophe === undefined && apostrophe !== undefined) own = { ...own, apostrophe };
+      const question = readQuestion(rest);
+      if (question !== undefined) {
         chain.push('question');
-        rest = rest.slice(question[0].length);
+        rest = rest.slice(question.length);
       }
-      const merged = own.apostrophe === undefined && apostrophe !== undefined ? { ...own, apostrophe } : own;
-      out += inflect(value, chain, merged) + rest;
+      let inflected: string;
+      try {
+        inflected = inflect(value, chain, own);
+      } catch (error) {
+        if (inferred && error instanceof InflectError && error.code === 'UNSUPPORTED') {
+          throw new InflectError(
+            'TEMPLATE_SYNTAX',
+            `"${written}" after ${where} starts with the pronominal n (Kurtuluş Savaşı'ndan), which needs a value ending in a 3rd-person possessive. ${error.message}`,
+          );
+        }
+        throw error;
+      }
+      if (question !== undefined) inflected += questionEnding(inflected, question.ending);
+      out += inflected + rest;
     }
     return out;
   };

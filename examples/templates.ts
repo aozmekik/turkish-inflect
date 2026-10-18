@@ -27,5 +27,11 @@ assert.equal(tr`${user}'e ${city}'dan bir paket geldi`, "Ahmet'e İzmir'den bir 
 assert.equal(tr`${'Ayşe'}'e ${'Bolu'}'dan bir paket geldi`, "Ayşe'ye Bolu'dan bir paket geldi");
 assert.equal(tr`${'kitap'}'ı sepete ekle`, 'kitabı sepete ekle');
 assert.equal(tr`Toplantı ${2026}'da ${'İzmir'} mı?`, "Toplantı 2026'da İzmir mi?");
+assert.equal(tr`${'hesap'}ınızdan ödendi`, 'hesabınızdan ödendi');
+assert.equal(tr`${'Kurtuluş Savaşı'}'ndan sonra`, "Kurtuluş Savaşı'ndan sonra");
+assert.equal(tr`${'Bolu'} misiniz?`, 'Bolu musunuz?');
+
+// Values without a suffix are written as they are, even when they cannot be read aloud.
+assert.equal(format('Dil: {lang}', { lang: 'C++' }), 'Dil: C++');
 
 console.log('templates: ok');

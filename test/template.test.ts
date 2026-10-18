@@ -58,6 +58,12 @@ describe('format', () => {
     expect(format('[{n}] [{n:dative}]', { n: '  Ali  ' })).toBe("[Ali] [Ali'ye]");
   });
 
+  it('accepts placeholder names in any script and dotted names', () => {
+    expect(format('{şehir:locative}', { şehir: 'İzmir' })).toBe("İzmir'de");
+    expect(format('{user.name:dative}', { 'user.name': 'Ali' })).toBe("Ali'ye");
+    expect(format('{_x$}', { _x$: 1 })).toBe('1');
+  });
+
   it.each<[string, unknown, unknown, string]>([
     ['a null value', '{a}', { a: null }, 'MISSING_VALUE'],
     ['a null value with suffixes', '{a:dative}', { a: null }, 'MISSING_VALUE'],
@@ -77,6 +83,9 @@ describe('format', () => {
     ['name}', 'TEMPLATE_SYNTAX'],
     ['{}', 'TEMPLATE_SYNTAX'],
     ['{1abc}', 'TEMPLATE_SYNTAX'],
+    ['{a.}', 'TEMPLATE_SYNTAX'],
+    ['{.a}', 'TEMPLATE_SYNTAX'],
+    ['{a b}', 'TEMPLATE_SYNTAX'],
     ['{name:}', 'TEMPLATE_SYNTAX'],
     ['{name:dative+}', 'TEMPLATE_SYNTAX'],
     ['{name:dat{ive}', 'TEMPLATE_SYNTAX'],
@@ -117,7 +126,16 @@ describe('tr', () => {
     ["'ları", 'Ahmet', 'Ahmetleri'],
     ["'inci", '56', "56'ncı"],
     ["'üncüye", '3', "3'üncüye"],
-    ["'ndan", 'Kurtuluş Savaşı', "Kurtuluş Savaşı'dan"],
+    ["'ndan", 'Kurtuluş Savaşı', "Kurtuluş Savaşı'ndan"],
+    ["'nı", 'Kurtuluş Savaşı', "Kurtuluş Savaşı'nı"],
+    ["'ne", 'Avrupa Birliği', "Avrupa Birliği'ne"],
+    ["'nda", 'Kız Kulesi', "Kız Kulesi'nde"],
+    ["'ım", 'Ahmet', "Ahmet'im"],
+    ["'m", 'Ahmet', "Ahmet'im"],
+    ["'ın", 'Ayşe', "Ayşe'nin"],
+    ["'ımız", 'İstanbul', "İstanbul'umuz"],
+    ["'ınız", 'Ayşe', "Ayşe'niz"],
+    ["'umuzdan", 'İzmir', "İzmir'imizden"],
   ])('reads %j after %j', (marker, value, expected) => {
     const strings = Object.assign([`<`, `${marker}>`], { raw: [`<`, `${marker}>`] });
     expect(tr(strings, value)).toBe(`<${expected}>`);
@@ -127,10 +145,29 @@ describe('tr', () => {
     expect(tr`${'kitap'}a ekle`).toBe('kitaba ekle');
     expect(tr`${'ev'}lerden`).toBe('evlerden');
     expect(tr`${'Ali'}ye`).toBe("Ali'ye");
+    expect(tr`${'kitap'}ım`).toBe('kitabım');
+    expect(tr`${'kitap'}ınız`).toBe('kitabınız');
+    expect(tr`${'hesap'}ınızdan`).toBe('hesabınızdan');
+    // Glued letters without a vowel stay as written (units: 5x, 100m); write 'm or ım instead.
+    expect(tr`${'araba'}m`).toBe('arabam');
+    expect(tr`${'kitap'}'m`).toBe('kitabım');
+  });
+
+  it('rejects letters glued to a value that are not suffixes', () => {
+    expect(() => tr`${'İzmir'}li`).toThrow(expect.objectContaining({ code: 'TEMPLATE_SYNTAX' }));
+    expect(() => tr`${'kitap'}çı`).toThrow(/put a space or punctuation after the value/u);
+  });
+
+  it('rejects the pronominal n after a value without a possessive', () => {
+    expect(() => tr`${'Ankara'}'nda`).toThrow(expect.objectContaining({ code: 'TEMPLATE_SYNTAX' }));
+    expect(() => tr`${'Ankara'}'nda`).toThrow(/pronominal n/u);
+    expect(tr`${{ value: 'Ankara', compound: false }}'nda`).toBe("Ankara'da");
   });
 
   it('leaves text that is not a suffix alone', () => {
     expect(tr`${5}x hızlı`).toBe('5x hızlı');
+    expect(tr`${100}m koşu`).toBe('100m koşu');
+    expect(tr`${10}px`).toBe('10px');
     expect(tr`${'Ali'} ile`).toBe('Ali ile');
     expect(tr`${'Ali'}`).toBe('Ali');
     expect(tr`${'Ali'}' dedi`).toBe("Ali' dedi");
@@ -144,6 +181,20 @@ describe('tr', () => {
     expect(tr`${2026}'da ${'İzmir'} mı?`).toBe("2026'da İzmir mi?");
     expect(tr`${'ev'}de mi?`).toBe('evde mi?');
     expect(tr`${'Ali'} mimar`).toBe('Ali mimar');
+    expect(tr`${'Ali'} misafir`).toBe('Ali misafir');
+  });
+
+  it('adjusts the endings of the question particle', () => {
+    expect(tr`${'Bolu'} misin?`).toBe('Bolu musun?');
+    expect(tr`${'Bolu'} miydi`).toBe('Bolu muydu');
+    expect(tr`${'Ankara'} mısınız?`).toBe('Ankara mısınız?');
+    expect(tr`${'Ankara'} misiniz?`).toBe('Ankara mısınız?');
+    expect(tr`${'İzmir'}'den mıydık?`).toBe("İzmir'den miydik?");
+    expect(tr`${'kitap'} midir`).toBe('kitap mıdır');
+    expect(tr`${'Ali'} mıymış`).toBe('Ali miymiş');
+    expect(tr`${'göz'} miyim`).toBe('göz müyüm');
+    // "müdür" is also a noun: "Ali müdür" (Ali is the director) is left alone.
+    expect(tr`${'Ali'} müdür`).toBe('Ali müdür');
   });
 
   it('rejects null and missing interpolations', () => {
@@ -205,12 +256,33 @@ describe('parseSuffixMarker', () => {
     ['dekiler', ['locative', 'ki', 'plural']],
     ['lerin', ['plural', 'genitive']],
     ['ları', ['plural', 'accusative']],
-    ['ndan', ['ablative']],
+    ['ım', ['possessive1sg']],
+    ['ın', ['genitive']],
+    ['ımız', ['possessive1pl']],
+    ['ınız', ['possessive2pl']],
+    ['ınızı', ['possessive2pl', 'accusative']],
+    ['mi', ['possessive1sg', 'accusative']],
+    ['sına', ['possessive3sg', 'dative']],
+    ['daki', ['locative', 'ki']],
   ])('%j → %j', (letters, expected) => {
-    expect(parseSuffixMarker(letters)).toEqual(expected);
+    expect(parseSuffixMarker(letters)).toEqual({ chain: expected, compound: false });
   });
 
-  it.each(['', 'xyz', 'eler', 'dee', 'mi'])('rejects %j', (letters) => {
+  it.each([
+    ['nı', ['accusative']],
+    ['na', ['dative']],
+    ['nda', ['locative']],
+    ['ndan', ['ablative']],
+    ['ndaki', ['locative', 'ki']],
+  ])('%j → %j after a compound', (letters, expected) => {
+    expect(parseSuffixMarker(letters)).toEqual({ chain: expected, compound: true });
+  });
+
+  it('reads the pronominal n after -ki or a possessive as part of the chain', () => {
+    expect(parseSuffixMarker('dakini')).toEqual({ chain: ['locative', 'ki', 'accusative'], compound: false });
+  });
+
+  it.each(['', 'xyz', 'eler', 'dee'])('rejects %j', (letters) => {
     expect(parseSuffixMarker(letters)).toBeUndefined();
   });
 });
