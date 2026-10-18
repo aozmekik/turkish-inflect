@@ -29,10 +29,15 @@ assert.equal(inflect('TBMM', 'dative'), "TBMM'ye");
 assert.equal(inflect('NATO', 'dative'), "NATO'ya");
 console.log(analyze('TBMM'));
 
-// Chains: locative + ki, plural + ablative, possessive + dative.
+// TDK writes no apostrophe after a superscript: m²ye (metrekareye), 6⁴ten (altı üssü dörtten).
+assert.equal(inflect('120 m²', 'dative'), '120 m²ye');
+
+// Chains: locative + ki, plural + ablative, possessive + dative, question + copula.
 assert.equal(inflect('İzmir', ['locative', 'ki']), "İzmir'deki");
 assert.equal(inflect('Ahmet', ['plural', 'ablative']), 'Ahmetlerden');
 assert.equal(inflect('hesap', ['possessive2pl', 'dative']), 'hesabınıza');
+assert.equal(inflect('su', ['possessive1sg', 'dative']), 'suyuma');
+assert.equal(inflect('kitap', ['question', 'copula']), 'kitap mıdır');
 
 // Compound names that already end in a possessive take the pronominal n.
 assert.equal(inflect('Avrupa Birliği', 'dative', { compound: true }), "Avrupa Birliği'ne");

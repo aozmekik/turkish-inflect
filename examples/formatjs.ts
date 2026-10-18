@@ -1,7 +1,8 @@
 /**
  * FormatJS / ICU MessageFormat integration with rich-text tags: wrap the argument in a tag
- * named after the suffix and map each tag to `inflect`. The same tag functions work with
- * react-intl's `<FormattedMessage values={...}>`.
+ * named after the suffix and map each tag to `inflect`. react-intl's
+ * `<FormattedMessage values={...}>` takes the same tag functions, so this should carry over,
+ * but only intl-messageformat is exercised here.
  * Run with `npm run build && node examples/formatjs.ts`.
  */
 import assert from 'node:assert/strict';
