@@ -63,7 +63,7 @@ async function lookup(word: string, cache: Record<string, Headword[]>): Promise<
 
 /** Words to check: lexicon keys plus single lower-case words used in the corpus. */
 function wordsToCheck(): string[] {
-  const words = new Set(Object.keys(DEFAULT_LEXICON.words ?? {}));
+  const words = new Set(Object.keys(DEFAULT_LEXICON.words));
   const sections: readonly Section[] = [...harmony, ...consonants, ...lexical];
   for (const section of sections) {
     for (const [input, , , options] of section.cases) {

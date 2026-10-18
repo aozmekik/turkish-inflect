@@ -26,9 +26,10 @@ rendering, so a long string could block the event loop (CWE-1333).
 
 ## Decision
 
-Option 3. `lettersStart` walks back over letters and combining marks, and `numeralStart` over
-digits and separators. Every value is also composed to NFC first, so a backward step never
-separates a letter from its mark.
+Option 3. `lettersStart` walks back over letters and combining marks, `numeralStart` over digits
+and separators, and the lexicon's end-of-value lookup only examines as many characters as its
+longest key. Every value is also composed to NFC first, so a backward step never separates a
+letter from its mark.
 
 ## Consequences
 

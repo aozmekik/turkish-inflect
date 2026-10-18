@@ -94,6 +94,20 @@ export const abbreviations: readonly Section[] = [
     ],
   },
   {
+    rule: 'abbreviations with a superscript take the suffix of their reading, without an apostrophe',
+    source:
+      'TDK Yazım Kılavuzu, Kısaltmalar (cm³e: santimetreküpe, m²ye: metrekareye, 6⁴ten: altı üssü dörtten)',
+    cases: [
+      ['cm³', 'dative', 'cm³e'],
+      ['m²', 'dative', 'm²ye'],
+      ['6⁴', 'ablative', '6⁴ten'],
+      ['120 m²', 'locative', '120 m²de'],
+      ['500 cm²', 'accusative', '500 cm²yi'],
+      ['2 km²', 'genitive', '2 km²nin'],
+      ['10²', 'dative', '10²ye'],
+    ],
+  },
+  {
     rule: 'abbreviations ending in a period take the suffix of the full word, without an apostrophe',
     source: 'TDK Yazım Kılavuzu, Kısaltmalar (Alm.dan, İng.yi, kr.un)',
     cases: [
@@ -102,6 +116,7 @@ export const abbreviations: readonly Section[] = [
       ['kr.', 'genitive', 'kr.un'],
       ['Dr.', 'dative', 'Dr.a'],
       ['Prof. Dr.', 'dative', 'Prof. Dr.a'],
+      ['Prof.Dr.', 'dative', 'Prof.Dr.a'],
       ['Cad.', 'dative', 'Cad.ye'],
       ['Sok.', 'locative', 'Sok.ta'],
       ['Mah.', 'locative', 'Mah.de'],

@@ -12,8 +12,13 @@
 import { LETTER_NAMES, lowerWritten, phonological, syllableCount } from './alphabet.js';
 import { toLower, toUpper } from './casing.js';
 import { InflectError } from './errors.js';
-import { type CompiledLexicon, type LexiconEntry, UNIT_AFTER_NUMBER_ONLY } from './lexicon.js';
-import { formatNumber, readTrailingNumeral } from './numbers.js';
+import {
+  type CompiledLexicon,
+  type LexiconEntry,
+  type ReadingEntry,
+  UNIT_AFTER_NUMBER_ONLY,
+} from './lexicon.js';
+import { formatNumber, integerWords, readTrailingNumeral } from './numbers.js';
 import { type Sound, soundOf } from './phonology.js';
 
 /** How to treat a value whose kind cannot be told from its shape. */
@@ -32,11 +37,13 @@ export interface InflectOptions {
    * - `'auto'`: a last word with a capital letter is a proper noun (Ayşe'ye), all capitals is
    *   an abbreviation (TBMM'ye), a final digit is a number (2026'ya), otherwise common (kitaba).
    * - `'proper'`: always a proper noun: apostrophe, no softening in writing (Tokat'a).
-   * - `'common'`: always a common noun: no apostrophe, stem changes (Kitabı for a label
-   *   "Kitap"). Also the right choice for institution names, which TDK writes without an
-   *   apostrophe (Türk Dil Kurumundan).
+   * - `'common'`: a common noun: no apostrophe, stem changes (Kitabı for a label "Kitap"). Also
+   *   the right choice for institution names, which TDK writes without an apostrophe (Türk Dil
+   *   Kurumundan).
    *
-   * Values ending in a digit always take an apostrophe, whatever the kind (TDK: 1985'te).
+   * Values ending in a digit (TDK: 1985'te), with a superscript (m²ye) or in a capital
+   * abbreviation without vowels, which can only be read letter by letter (TBMM'ye), are
+   * written as those whatever the kind.
    */
   readonly kind?: WordKind;
   /**
@@ -100,8 +107,20 @@ export interface InternalAnalysis extends Analysis {
 const LETTER = /\p{L}/u;
 const MARK = /\p{M}/u;
 const WHITESPACE = /\s/u;
-const DIGIT_BEFORE = /\d ?$/u;
 const SINGLE_LETTER = /^\p{L}\p{M}*$/u;
+const APOSTROPHES: ReadonlySet<string> = new Set(["'", '’']);
+const SUPERSCRIPT_DIGITS: Readonly<Record<string, string>> = {
+  '⁰': '0',
+  '¹': '1',
+  '²': '2',
+  '³': '3',
+  '⁴': '4',
+  '⁵': '5',
+  '⁶': '6',
+  '⁷': '7',
+  '⁸': '8',
+  '⁹': '9',
+};
 
 function hasUpper(text: string): boolean {
   return toLower(text) !== text;
@@ -109,6 +128,10 @@ function hasUpper(text: string): boolean {
 
 function hasLower(text: string): boolean {
   return toUpper(text) !== text;
+}
+
+function isDigit(ch: string): boolean {
+  return ch >= '0' && ch <= '9';
 }
 
 /** The index of the code point that ends at `index` (one or two UTF-16 code units back). */
@@ -136,6 +159,27 @@ function lettersStart(text: string, end: number): number {
       start = before;
     }
     index = before;
+  }
+  return start;
+}
+
+function hasVowelSound(written: string): boolean {
+  return syllableCount(phonological(written)) > 0;
+}
+
+/**
+ * Where the last word of a value starts. A vowelless run after an apostrophe belongs to the
+ * word before it (McDonald's, Levi's), while a syllable after one is read on its own, as a
+ * Turkish suffix would be (Ahmet'in).
+ */
+function finalTokenStart(text: string): number {
+  let start = lettersStart(text, text.length);
+  let vowelless = !hasVowelSound(text.slice(start));
+  while (vowelless && start < text.length && APOSTROPHES.has(text.charAt(start - 1))) {
+    const before = lettersStart(text, start - 1);
+    if (before === start - 1) break;
+    vowelless = !hasVowelSound(text.slice(before, start - 1));
+    start = before;
   }
   return start;
 }
@@ -184,16 +228,25 @@ export function textOf(value: InflectValue): string {
   return formatNumber(value);
 }
 
-/**
- * The kind implied by a value's shape when its pronunciation is known. `registered` values
- * come from the lexicon, where lower-case keys are symbols (cm'yi) rather than common nouns.
- */
-function shapeKind(text: string, kind: WordKind, registered: boolean): ValueKind {
-  if (/\d$/u.test(text)) return 'number';
+/** The kind implied by a value's shape when its pronunciation is given with `reading`. */
+function shapeKind(text: string, kind: WordKind): ValueKind {
+  if (isDigit(text.slice(-1))) return 'number';
   if (kind === 'proper' || kind === 'common') return kind;
   if (text.endsWith('.')) return 'abbreviation';
   if (hasUpper(text)) return hasLower(text) ? 'proper' : 'abbreviation';
-  return registered ? 'abbreviation' : 'common';
+  return 'common';
+}
+
+/**
+ * The kind of a value whose end `key` is registered in the lexicon: lower-case keys are
+ * symbols (cm'yi), mixed case keys names (iPhone'a), unless the entry or the call says otherwise.
+ */
+function registeredKind(key: string, entry: ReadingEntry, kind: WordKind): ValueKind {
+  if (isDigit(key.slice(-1))) return 'number';
+  if (kind === 'proper' || kind === 'common') return kind;
+  if (entry.kind !== undefined) return entry.kind;
+  if (key.endsWith('.')) return 'abbreviation';
+  return hasUpper(key) && hasLower(key) ? 'proper' : 'abbreviation';
 }
 
 /** The analysis for a value with a known reading (option, or registered in the lexicon). */
@@ -220,6 +273,39 @@ function withReading(
 }
 
 /**
+ * The analysis of a value whose end, `key` from index `start`, has a registered pronunciation;
+ * `undefined` when there is none or it does not apply here.
+ */
+function analyzeRegistered(
+  text: string,
+  key: string,
+  start: number,
+  options: InflectOptions,
+  lexicon: CompiledLexicon,
+): InternalAnalysis | undefined {
+  const entry = lexicon.reading(key);
+  if (entry === undefined) return undefined;
+  if (UNIT_AFTER_NUMBER_ONLY.has(key)) {
+    // One-letter unit symbols (m, g) only count right after a number: "5 m", "100g".
+    const before = text.charAt(start - 1) === ' ' ? start - 2 : start - 1;
+    if (!isDigit(text.charAt(before))) return undefined;
+  }
+  if (options.abbreviation === 'letters' && hasUpper(key) && !hasLower(key)) return undefined;
+  return withReading(text, entry.reading, registeredKind(key, entry, options.kind ?? 'auto'), lexicon);
+}
+
+function analyzeKeyAtEnd(
+  text: string,
+  options: InflectOptions,
+  lexicon: CompiledLexicon,
+): InternalAnalysis | undefined {
+  const key = lexicon.trailingKey(text);
+  return key === undefined
+    ? undefined
+    : analyzeRegistered(text, key, text.length - key.length, options, lexicon);
+}
+
+/**
  * Works out how a value ends when spoken.
  *
  * @internal
@@ -231,19 +317,19 @@ export function analyzeValue(
 ): InternalAnalysis {
   const text = textOf(value);
   if (text === '') throw new InflectError('EMPTY_VALUE', 'Cannot inflect an empty value.');
-  const kind = options.kind ?? 'auto';
-  const abbreviation = options.abbreviation ?? 'auto';
-
   if (options.reading !== undefined) {
-    return withReading(text, options.reading, shapeKind(text, kind, false), lexicon);
+    return withReading(text, options.reading, shapeKind(text, options.kind ?? 'auto'), lexicon);
   }
 
-  // One-letter unit symbols (m, g) only count after a number, which the token lookup handles.
-  const registered = UNIT_AFTER_NUMBER_ONLY.has(text) ? undefined : lexicon.reading(text);
-  const allCaps = hasUpper(text) && !hasLower(text);
-  if (registered !== undefined && !(allCaps && abbreviation === 'letters')) {
-    return withReading(text, registered, shapeKind(text, kind, true), lexicon);
-  }
+  // A registered pronunciation of the whole value, or of its end after a space ("Yeni C#").
+  const registered =
+    analyzeRegistered(text, text, 0, options, lexicon) ?? analyzeKeyAtEnd(text, options, lexicon);
+  if (registered !== undefined) return registered;
+
+  let exponentStart = text.length;
+  while (exponentStart > 0 && SUPERSCRIPT_DIGITS[text.charAt(exponentStart - 1)] !== undefined)
+    exponentStart--;
+  if (exponentStart < text.length) return analyzeExponent(text, exponentStart, lexicon);
 
   if (text.endsWith('.')) return analyzeDotted(text, lexicon);
 
@@ -264,7 +350,7 @@ export function analyzeValue(
     };
   }
 
-  const tokenStart = lettersStart(text, text.length);
+  const tokenStart = finalTokenStart(text);
   if (tokenStart === text.length) {
     throw new InflectError(
       'UNREADABLE',
@@ -274,8 +360,43 @@ export function analyzeValue(
   return analyzeWord(text, text.slice(tokenStart), tokenStart, options, lexicon);
 }
 
+/**
+ * A value ending in a superscript: m² is "metrekare" and cm³ "santimetreküp", 6⁴ is "altı
+ * üssü dört". TDK writes the suffix right after the superscript, without an apostrophe:
+ * m²ye, cm³e, 6⁴ten (Yazım Kılavuzu, Kısaltmalar).
+ */
+function analyzeExponent(text: string, start: number, lexicon: CompiledLexicon): InternalAnalysis {
+  const exponent = Array.from(text.slice(start), (ch) => SUPERSCRIPT_DIGITS[ch] ?? '').join('');
+  const base = text.slice(0, start);
+  const power = ['üssü', ...integerWords(exponent)].join(' ');
+  const numeral = readTrailingNumeral(base);
+  if (numeral !== undefined) {
+    return {
+      ...withReading(text, `${numeral.words.join(' ')} ${power}`, 'number', lexicon),
+      apostrophe: false,
+    };
+  }
+  const tokenStart = lettersStart(base, base.length);
+  const token = base.slice(tokenStart);
+  if (token === '') {
+    throw new InflectError(
+      'UNREADABLE',
+      `Cannot tell what the superscript in "${text}" belongs to; pass the pronunciation with the \`reading\` option.`,
+    );
+  }
+  const unit = lexicon.reading(token)?.reading;
+  const name =
+    unit ?? (SINGLE_LETTER.test(token) || !hasVowelSound(token) ? letterReading(token) : phonological(token));
+  // Units form one word with kare and küp (metrekare, santimetreküp); anything else is read
+  // as "x kare", "a üssü dört".
+  const square = exponent === '2' ? 'kare' : exponent === '3' ? 'küp' : undefined;
+  const reading =
+    square === undefined ? `${name} ${power}` : unit === undefined ? `${name} ${square}` : name + square;
+  return { ...withReading(text, reading, 'abbreviation', lexicon), apostrophe: false };
+}
+
 function analyzeDotted(text: string, lexicon: CompiledLexicon): InternalAnalysis {
-  if (/\d\.$/u.test(text)) {
+  if (isDigit(text.charAt(text.length - 2))) {
     throw new InflectError(
       'UNSUPPORTED',
       `"${text}" is an ordinal written with a period, which takes no suffix (TDK: 8'inci, not 8.'inci). Inflect the number with the "ordinal" suffix instead.`,
@@ -283,7 +404,7 @@ function analyzeDotted(text: string, lexicon: CompiledLexicon): InternalAnalysis
   }
   const start = lettersStart(text, text.length - 1);
   const token = start === text.length - 1 ? undefined : text.slice(start);
-  const reading = token === undefined ? undefined : lexicon.reading(token);
+  const reading = token === undefined ? undefined : lexicon.reading(token)?.reading;
   if (reading === undefined) {
     throw new InflectError(
       'UNREADABLE',
@@ -317,19 +438,11 @@ function analyzeWord(
   const abbreviation = options.abbreviation ?? 'auto';
   const upper = hasUpper(token);
   const lower = hasLower(token);
-  const single = SINGLE_LETTER.test(token);
 
-  let registered = lexicon.reading(token);
-  if (registered !== undefined && UNIT_AFTER_NUMBER_ONLY.has(token)) {
-    if (!DIGIT_BEFORE.test(text.slice(0, tokenStart))) registered = undefined;
-  }
-  if (registered !== undefined && !(upper && !lower && abbreviation === 'letters')) {
-    const registeredKind: ValueKind =
-      kind === 'common' ? 'common' : upper && lower ? 'proper' : 'abbreviation';
-    return withReading(text, registered, registeredKind, lexicon);
-  }
+  const registered = analyzeRegistered(text, token, tokenStart, options, lexicon);
+  if (registered !== undefined) return registered;
 
-  if (single && kind !== 'common') return letters(text, token, 'letter', lexicon);
+  if (SINGLE_LETTER.test(token) && kind !== 'common') return letters(text, token, 'letter', lexicon);
 
   if (upper && !lower && kind !== 'common' && abbreviation !== 'word') {
     return letters(text, token, 'abbreviation', lexicon);

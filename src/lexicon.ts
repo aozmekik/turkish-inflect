@@ -12,6 +12,8 @@
  */
 
 import { lowerWritten } from './alphabet.js';
+import { InflectError } from './errors.js';
+import { checkObject, describe } from './validate.js';
 
 /**
  * Inflection exceptions for a single word. Every flag is optional and an omitted flag falls
@@ -43,14 +45,27 @@ export interface LexiconEntry {
   readonly ki?: boolean;
 }
 
+/** A pronunciation registered in {@link Lexicon.readings}, with the kind of value it belongs to. */
+export interface ReadingEntry {
+  /** The pronunciation in Turkish spelling, e.g. "veb" for "web". */
+  readonly reading: string;
+  /**
+   * How the value is treated. By default the written form decides: mixed case is a proper noun
+   * (iPhone'a), anything else an abbreviation or symbol (NATO'ya, kg'dan), and both take an
+   * apostrophe. `'common'` is for common nouns whose spelling does not tell their pronunciation
+   * (web → "veb": webde), which take no apostrophe.
+   */
+  readonly kind?: 'common' | 'proper' | 'abbreviation';
+}
+
 /**
  * A lexicon extends or overrides the built-in exception lists.
  *
  * @example
  * ```ts
  * const lexicon: Lexicon = {
- *   words: { hevenk: { soften: true } },
- *   readings: { iPhone: 'ayfon', 'C#': 'si şarp', BM: 'birleşmiş milletler' },
+ *   words: { hevenk: { soften: true }, pazartesi: { ki: true } },
+ *   readings: { iPhone: 'ayfon', 'C#': 'si şarp', web: { reading: 'veb', kind: 'common' } },
  * };
  * ```
  */
@@ -65,17 +80,25 @@ export interface Lexicon {
    * Pronunciations keyed by the exact written form: acronyms read as words (NATO → "nato"),
    * lower-case symbols (kg → "kilogram"), dotted abbreviations ("Dr." → "doktor"), or any
    * name whose spelling does not reflect its pronunciation (Shakespeare → "şekspir").
-   * The value is written in Turkish spelling. Keys are matched against the whole value first
-   * and then against its last word.
+   * The value is written in Turkish spelling; give a {@link ReadingEntry} to also set the kind.
+   * Keys are matched against the whole value, then against the end of the value after a space
+   * (so "C#" also matches "Yeni C#"), then against the trailing run of letters ("iPhone" in
+   * "Yeni iPhone").
    */
-  readonly readings?: Readonly<Record<string, string>>;
+  readonly readings?: Readonly<Record<string, string | ReadingEntry>>;
 }
 
-/** Builds a map from a list of words that share one entry. */
-function group(words: readonly string[], entry: LexiconEntry): Record<string, LexiconEntry> {
-  const out: Record<string, LexiconEntry> = {};
-  for (const word of words) out[word] = entry;
-  return out;
+/** The type of {@link DEFAULT_LEXICON}: a {@link Lexicon} whose two lists are always present. */
+export interface DefaultLexicon extends Lexicon {
+  /** The built-in word exceptions. */
+  readonly words: Readonly<Record<string, LexiconEntry>>;
+  /** The built-in pronunciations. */
+  readonly readings: Readonly<Record<string, string>>;
+}
+
+/** Adds the flags of `entry` to every word of a list. */
+function mark(target: Record<string, LexiconEntry>, words: readonly string[], entry: LexiconEntry): void {
+  for (const word of words) target[word] = { ...target[word], ...entry };
 }
 
 /**
@@ -340,40 +363,45 @@ const TAKES_KI = [
   'yıl',
 ] as const;
 
-/** The built-in word exceptions. Later spreads win, so combined entries come last. */
-const DEFAULT_WORDS: Readonly<Record<string, LexiconEntry>> = {
-  ...group(FRONT_HARMONY, { front: true }),
-  ...group(SOFTENING, { soften: true }),
-  ...group(NON_SOFTENING, { soften: false }),
-  ...group(VOWEL_DROP, { dropVowel: true }),
-  ...group(DOUBLING, { doubleConsonant: true }),
-  ...group(TAKES_KI, { ki: true }),
-  // Combinations.
-  kalp: { front: true, soften: true },
-  idrak: { front: true, soften: false },
-  iştirak: { front: true, soften: false },
-  had: { front: true, doubleConsonant: true },
-  mahal: { front: true, doubleConsonant: true },
-  vaat: { front: true, soften: true },
-  ret: { soften: true, doubleConsonant: true },
-  tıp: { soften: true, doubleConsonant: true },
-  zıt: { soften: true, doubleConsonant: true },
-  ahit: { dropVowel: true, soften: true },
-  akit: { dropVowel: true, soften: true },
-  kayıt: { dropVowel: true, soften: true },
-  su: { bufferY: true },
-  // Homographs written with a circumflex that differ from their plain twins.
-  âdet: {},
-  âkit: {},
-  emîr: {},
-  hâk: { front: true },
-  metîn: {},
-  nâkil: {},
-};
+/** Builds the built-in word exceptions; combined entries are written out last. */
+function defaultWords(): Record<string, LexiconEntry> {
+  const words: Record<string, LexiconEntry> = {};
+  mark(words, FRONT_HARMONY, { front: true });
+  mark(words, SOFTENING, { soften: true });
+  mark(words, NON_SOFTENING, { soften: false });
+  mark(words, VOWEL_DROP, { dropVowel: true });
+  mark(words, DOUBLING, { doubleConsonant: true });
+  mark(words, TAKES_KI, { ki: true });
+  return {
+    ...words,
+    // Combinations.
+    kalp: { front: true, soften: true },
+    idrak: { front: true, soften: false },
+    iştirak: { front: true, soften: false },
+    had: { front: true, doubleConsonant: true },
+    mahal: { front: true, doubleConsonant: true },
+    vaat: { front: true, soften: true },
+    ret: { soften: true, doubleConsonant: true },
+    tıp: { soften: true, doubleConsonant: true },
+    zıt: { soften: true, doubleConsonant: true },
+    ahit: { dropVowel: true, soften: true },
+    akit: { dropVowel: true, soften: true },
+    kayıt: { dropVowel: true, soften: true },
+    su: { bufferY: true },
+    // Homographs written with a circumflex that differ from their plain twins.
+    âdet: {},
+    âkit: {},
+    emîr: {},
+    hâk: { front: true },
+    metîn: {},
+    nâkil: {},
+  };
+}
 
 /**
  * Built-in pronunciations. Upper-case abbreviations are read letter by letter unless listed
- * here (TDK Yazım Kılavuzu, Kısaltmalar: ASELSAN'da, BOTAŞ'ın, NATO'dan, UNESCO'ya).
+ * here (TDK Yazım Kılavuzu, Kısaltmalar: ASELSAN'da, BOTAŞ'ın, NATO'dan, UNESCO'ya; AGİK'in,
+ * RTÜK'e, ÇUKOBİRLİK'e).
  * Lower-case symbols follow the full word (cm'yi, kg'dan, mm'den), as do abbreviations that
  * end in a period, which take their suffix without an apostrophe (Alm.dan, İng.yi, kr.un).
  * One-letter symbols (m, g) are only recognised right after a number ("5 m", "100g").
@@ -437,19 +465,17 @@ const DEFAULT_READINGS: Readonly<Record<string, string>> = {
   'vs.': 'vesaire',
 };
 
-function freeze<T extends object>(record: T): Readonly<T> {
-  for (const value of Object.values(record)) if (typeof value === 'object') Object.freeze(value);
-  return Object.freeze(record);
+function freezeLexicon(): DefaultLexicon {
+  const words = defaultWords();
+  for (const entry of Object.values(words)) Object.freeze(entry);
+  return Object.freeze({ words: Object.freeze(words), readings: Object.freeze({ ...DEFAULT_READINGS }) });
 }
 
 /**
- * The built-in lexicon, read-only. Pass additions or overrides to `createInflector`; this
+ * The built-in lexicon, deeply frozen. Pass additions or overrides to `createInflector`; this
  * export is for inspecting what the defaults cover.
  */
-export const DEFAULT_LEXICON: Lexicon = Object.freeze({
-  words: freeze({ ...DEFAULT_WORDS }),
-  readings: freeze({ ...DEFAULT_READINGS }),
-});
+export const DEFAULT_LEXICON: DefaultLexicon = freezeLexicon();
 
 /** One-letter symbols that are only read as units right after a number. */
 export const UNIT_AFTER_NUMBER_ONLY: ReadonlySet<string> = new Set(['g', 'm']);
@@ -463,20 +489,57 @@ export interface CompiledLexicon {
   /** Finds the entry for a word, trying the exact lower-case spelling first. */
   word(written: string, phonologicalForm: string): LexiconEntry | undefined;
   /** Finds the pronunciation registered for an exact written form. */
-  reading(written: string): string | undefined;
+  reading(written: string): ReadingEntry | undefined;
+  /**
+   * The longest registered key that ends `text` right after whitespace ("C#" in "Yeni C#").
+   * Only the last characters of `text`, as many as the longest key has, are examined.
+   */
+  trailingKey(text: string): string | undefined;
 }
 
-/** Merges a user lexicon over the built-in one. */
-export function compileLexicon(extra?: Lexicon): CompiledLexicon {
-  const words = new Map<string, LexiconEntry>();
-  for (const [key, entry] of Object.entries(DEFAULT_WORDS)) words.set(key, entry);
-  for (const [key, entry] of Object.entries(extra?.words ?? {})) words.set(lowerWritten(key), entry);
+const KINDS: readonly (string | undefined)[] = [undefined, 'common', 'proper', 'abbreviation'];
 
-  const readings = new Map<string, string>();
-  for (const [key, value] of Object.entries(DEFAULT_READINGS)) readings.set(key, value);
-  for (const [key, value] of Object.entries(extra?.readings ?? {})) {
-    readings.set(key.normalize('NFC'), value);
+/** Validates one user reading and brings it into the {@link ReadingEntry} form. */
+function readingEntry(key: string, value: unknown): ReadingEntry {
+  if (typeof value === 'string') return { reading: value };
+  const { reading, kind } = checkObject(value, `the reading of "${key}"`);
+  if (typeof reading !== 'string' || !KINDS.includes(kind as string | undefined)) {
+    throw new InflectError(
+      'INVALID_ARGUMENT',
+      `The reading of "${key}" must be a string or { reading: string, kind?: 'common' | 'proper' | 'abbreviation' }, got reading ${describe(reading)} and kind ${describe(kind)}.`,
+    );
   }
+  return kind === undefined ? { reading } : { reading, kind: kind as NonNullable<ReadingEntry['kind']> };
+}
+
+const WHITESPACE = /\s/u;
+
+/**
+ * Merges a user lexicon over the built-in one.
+ *
+ * @throws {@link InflectError} `INVALID_ARGUMENT` when the lexicon is malformed.
+ */
+export function compileLexicon(extra: Lexicon = {}): CompiledLexicon {
+  checkObject(extra, 'the lexicon');
+  const words = new Map<string, LexiconEntry>(Object.entries(DEFAULT_LEXICON.words));
+  if (extra.words !== undefined) {
+    checkObject(extra.words, 'lexicon.words');
+    for (const [key, entry] of Object.entries(extra.words)) {
+      checkObject(entry, `the lexicon entry of "${key}"`);
+      words.set(lowerWritten(key), entry);
+    }
+  }
+
+  const readings = new Map<string, ReadingEntry>();
+  for (const [key, reading] of Object.entries(DEFAULT_LEXICON.readings)) readings.set(key, { reading });
+  if (extra.readings !== undefined) {
+    checkObject(extra.readings, 'lexicon.readings');
+    for (const [key, value] of Object.entries(extra.readings)) {
+      readings.set(key.normalize('NFC'), readingEntry(key, value));
+    }
+  }
+  let longest = 0;
+  for (const key of readings.keys()) longest = Math.max(longest, key.length);
 
   return {
     word(written, phonologicalForm) {
@@ -484,6 +547,14 @@ export function compileLexicon(extra?: Lexicon): CompiledLexicon {
     },
     reading(written) {
       return readings.get(written.normalize('NFC'));
+    },
+    trailingKey(text) {
+      for (let start = Math.max(1, text.length - longest); start < text.length; start++) {
+        if (!WHITESPACE.test(text.charAt(start - 1))) continue;
+        const key = text.slice(start);
+        if (readings.has(key.normalize('NFC'))) return key;
+      }
+      return undefined;
     },
   };
 }

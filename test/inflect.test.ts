@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_LEXICON,
   InflectError,
+  type InflectorConfig,
   SUFFIXES,
   type Suffix,
   analyze,
@@ -120,6 +121,76 @@ describe('inflect', () => {
     expect(custom('C#', 'dative')).toBe("C#'a");
     expect(custom('.NET', 'locative')).toBe(".NET'te");
     expect(custom('C#', 'dative', { kind: 'common' })).toBe('C#a');
+  });
+
+  it('matches registered keys at the end of a value after a space', () => {
+    const { inflect: custom } = createInflector({
+      lexicon: {
+        readings: {
+          'C#': 'si şarp',
+          'Node.js': 'nod cey es',
+          'Visual Studio': 'vijual stüdyo',
+          'Windows 11': 'vindovs on bir',
+        },
+      },
+    });
+    expect(custom('Yeni C#', 'dative')).toBe("Yeni C#'a");
+    expect(custom('Yeni Node.js', 'dative')).toBe("Yeni Node.js'e");
+    expect(custom('Microsoft Visual Studio', 'locative')).toBe("Microsoft Visual Studio'da");
+    expect(custom('Yeni Windows 11', 'dative', { kind: 'common' })).toBe("Yeni Windows 11'e");
+    // Only after whitespace: "XC#" is not "C#".
+    expect(codeOf(() => custom('XC#', 'dative'))).toBe('UNREADABLE');
+  });
+
+  it('lets a registered reading set the kind of the value', () => {
+    const custom = createInflector({
+      lexicon: {
+        readings: { web: { reading: 'veb', kind: 'common' }, mouse: 'maus', NASA: { reading: 'nasa' } },
+      },
+    });
+    expect(custom.inflect('web', 'locative')).toBe('webde');
+    expect(custom.inflect('yeni web', 'dative')).toBe('yeni webe');
+    expect(custom.inflect('mouse', 'dative')).toBe("mouse'a");
+    expect(custom.inflect('NASA', 'genitive')).toBe("NASA'nın");
+    expect(custom.inflect('web', 'locative', { kind: 'proper' })).toBe("web'de");
+    expect(custom.analyze('web')).toEqual({ text: 'web', kind: 'common', reading: 'veb', apostrophe: false });
+  });
+
+  it('reads a vowelless run after an apostrophe as part of the word before it', () => {
+    expect(inflect("McDonald's", 'dative')).toBe("McDonald's'a");
+    expect(inflect("Domino's", 'locative')).toBe("Domino's'ta");
+    expect(inflect("Levi's", 'dative')).toBe("Levi's'e");
+    expect(inflect("rock'n'roll", 'locative', { kind: 'proper' })).toBe("rock'n'roll'da");
+    // A syllable after the apostrophe is read on its own, as a Turkish suffix would be.
+    expect(inflect("Ahmet'in", 'copula')).toBe("Ahmet'indir");
+    expect(analyze("McDonald's").reading).toBe('mcdonalds');
+    expect(analyze("'n").reading).toBe('ne');
+  });
+
+  it('reads superscripts and writes the suffix without an apostrophe', () => {
+    expect(inflect('120 m²', 'dative')).toBe('120 m²ye');
+    expect(inflect('m²', 'dative')).toBe('m²ye');
+    expect(inflect('cm³', 'dative')).toBe('cm³e');
+    expect(inflect('6⁴', 'ablative')).toBe('6⁴ten');
+    expect(inflect('x²', 'dative')).toBe('x²ye');
+    expect(inflect('a⁴', 'locative')).toBe('a⁴te');
+    expect(inflect('2¹⁰', 'dative')).toBe('2¹⁰a');
+    expect(analyze('120 m²')).toEqual({
+      text: '120 m²',
+      kind: 'abbreviation',
+      reading: 'metrekare',
+      apostrophe: false,
+    });
+    expect(analyze('6⁴')).toEqual({
+      text: '6⁴',
+      kind: 'number',
+      reading: 'altı üssü dört',
+      apostrophe: false,
+    });
+    expect(analyze('x²').reading).toBe('iks kare');
+    expect(analyze('bc²').reading).toBe('be ce kare');
+    expect(analyze('ab³').reading).toBe('ab küp');
+    expect(codeOf(() => inflect('+²', 'dative'))).toBe('UNREADABLE');
   });
 
   it('keeps the vowel in reduplications (şehirden şehire)', () => {
@@ -380,10 +451,28 @@ describe('createInflector', () => {
   });
 
   it('exposes a frozen copy of the built-in lexicon', () => {
-    expect(DEFAULT_LEXICON.words?.['saat']).toEqual({ front: true });
-    expect(DEFAULT_LEXICON.readings?.['NATO']).toBe('nato');
+    expect(DEFAULT_LEXICON.words['saat']).toEqual({ front: true });
+    expect(DEFAULT_LEXICON.words['akşam']).toEqual({ ki: true });
+    expect(DEFAULT_LEXICON.readings['NATO']).toBe('nato');
     expect(Object.isFrozen(DEFAULT_LEXICON)).toBe(true);
     expect(Object.isFrozen(DEFAULT_LEXICON.words)).toBe(true);
-    expect(Object.isFrozen(DEFAULT_LEXICON.words?.['saat'])).toBe(true);
+    expect(Object.isFrozen(DEFAULT_LEXICON.readings)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_LEXICON.words['saat'])).toBe(true);
+  });
+
+  it.each<[string, unknown]>([
+    ['a configuration that is not an object', 'tr'],
+    ['words that are not an object', { lexicon: { words: [] } }],
+    ['a word entry that is not an object', { lexicon: { words: { kitap: true } } }],
+    ['readings that are not an object', { lexicon: { readings: 'nato' } }],
+    ['a reading that is not a string', { lexicon: { readings: { NATO: 5 } } }],
+    ['a reading entry without a reading', { lexicon: { readings: { NATO: { kind: 'proper' } } } }],
+    [
+      'a reading entry with an unknown kind',
+      { lexicon: { readings: { NATO: { reading: 'nato', kind: 'x' } } } },
+    ],
+    ['defaults with an unknown kind', { defaults: { kind: 'name' } }],
+  ])('rejects %s', (_, config) => {
+    expect(codeOf(() => createInflector(config as InflectorConfig))).toBe('INVALID_ARGUMENT');
   });
 });
