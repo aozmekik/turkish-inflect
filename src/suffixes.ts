@@ -49,7 +49,7 @@ export const SUFFIXES = [
  * | `ki`            | -ki (-kü)             | evdeki, yarınki, bugünkü        |
  * | `ordinal`       | -(ı)ncı (numbers)     | 15'inci, 2'nci                  |
  * | `copula`        | -dır / -tır           | kitaptır, Ankara'dır            |
- * | `question`      | the separate word mı  | Ayşe mi, kitap mı               |
+ * | `question`      | the separate word mı  | Ayşe mi, kitap mı (mıdır)       |
  */
 export type Suffix = (typeof SUFFIXES)[number];
 
@@ -81,16 +81,33 @@ const SPECS: Readonly<Record<CanonicalSuffix, SuffixSpec>> = {
   possessive1pl: { slot: 'possessive', template: template('(I)mIz') },
   possessive2pl: { slot: 'possessive', template: template('(I)nIz') },
   possessive3pl: { slot: 'possessive', template: template('lArI'), setsPronominal: true },
-  accusative: { slot: 'case', template: template('(y)I'), pronominal: template('nI') },
-  dative: { slot: 'case', template: template('(y)A'), pronominal: template('nA') },
-  locative: { slot: 'case', template: template('DA'), pronominal: template('nDA') },
-  ablative: { slot: 'case', template: template('DAn'), pronominal: template('nDAn') },
+  accusative: {
+    slot: 'case',
+    template: template('(y)I'),
+    pronominal: template('nI'),
+  },
+  dative: {
+    slot: 'case',
+    template: template('(y)A'),
+    pronominal: template('nA'),
+  },
+  locative: {
+    slot: 'case',
+    template: template('DA'),
+    pronominal: template('nDA'),
+  },
+  ablative: {
+    slot: 'case',
+    template: template('DAn'),
+    pronominal: template('nDAn'),
+  },
   genitive: { slot: 'case', template: template('(n)In') },
   instrumental: { slot: 'case', template: template('(y)lA') },
   ile: { slot: 'case', template: template(' ile'), separate: true },
   ki: { slot: 'ki', template: template('ki'), setsPronominal: true },
-  copula: { slot: 'copula', template: template('DIr') },
   question: { slot: 'question', template: template(' mI'), separate: true },
+  // After the question particle the copula attaches to it: kitap mıdır, not kitaptır mı.
+  copula: { slot: 'copula', template: template('DIr') },
 };
 
 /** After the plural, the 3rd-person plural possessive is just -ı (kitaplar + ları → kitapları). */
@@ -106,11 +123,14 @@ const ORDER: Readonly<Record<Slot, number>> = {
   possessive: 2,
   case: 3,
   ki: 4,
-  copula: 7,
-  question: 8,
+  question: 7,
+  copula: 8,
 };
 
 const KNOWN: ReadonlySet<string> = new Set(SUFFIXES);
+
+const ORDER_HINT =
+  'Suffixes combine in the order ordinal, plural, possessive, case, ki (after locative or genitive), plural, case, question, copula.';
 
 /** Returns the specification of a canonical suffix. */
 export function specOf(suffix: CanonicalSuffix): SuffixSpec {
@@ -129,7 +149,7 @@ function suffixList(input: unknown): readonly string[] {
 
 /**
  * Resolves aliases and checks that the suffixes can follow each other:
- * ordinal → plural → possessive → case → ki → plural → case → copula → question.
+ * ordinal → plural → possessive → case → ki → plural → case → question → copula.
  *
  * @throws {@link InflectError} `INVALID_SUFFIX`, `INVALID_SUFFIX_ORDER` or `INVALID_ARGUMENT`.
  */
@@ -154,10 +174,13 @@ export function normalizeChain(input: SuffixInput): CanonicalSuffix[] {
     const kiMisplaced =
       slot === 'ki' && previous !== 'start' && previous !== 'locative' && previous !== 'genitive';
     if (index <= position || kiMisplaced || (previous === 'ile' && slot !== 'question')) {
+      const hint =
+        previous === 'copula' && slot === 'question'
+          ? 'The question particle carries the copula: use ["question", "copula"] (kitap mıdır).'
+          : ORDER_HINT;
       throw new InflectError(
         'INVALID_SUFFIX_ORDER',
-        `"${name}" cannot follow "${previous}" in [${list.join(', ')}]. ` +
-          'Suffixes combine in the order ordinal, plural, possessive, case, ki (after locative or genitive), plural, case, copula, question.',
+        `"${name}" cannot follow "${previous}" in [${list.join(', ')}]. ${hint}`,
       );
     }
     if (slot === 'ki') afterKi = true;

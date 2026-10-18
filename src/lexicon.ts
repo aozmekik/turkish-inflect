@@ -34,8 +34,13 @@ export interface LexiconEntry {
   readonly dropVowel?: boolean;
   /** The final consonant doubles before a vowel-initial suffix: hak → hakkı, tıp → tıbbı. */
   readonly doubleConsonant?: boolean;
-  /** The buffer consonant is always y, also where n or s is expected: su → suyu, suyun. */
+  /** The word gains a y before a vowel or a buffer, also where n or s is expected: su → suyu, suyun. */
   readonly bufferY?: boolean;
+  /**
+   * The word takes the adjectival -ki directly, as time words do (akşamki, yarınki, geçen yılki).
+   * Other words need a locative or genitive first (evdeki, Ahmet'inki).
+   */
+  readonly ki?: boolean;
 }
 
 /**
@@ -299,6 +304,42 @@ const VOWEL_DROP = [
  */
 const DOUBLING = ['af', 'hac', 'hak', 'hat', 'his', 'sır', 'şer', 'üs', 'zam', 'zan'] as const;
 
+/**
+ * Words that take the adjectival -ki directly: time words (TDK Yazım Kılavuzu, -ki Eki:
+ * akşamki, yarınki, bugünkü, dünkü) and the place words karşı, öte, beri, öbür (karşıki,
+ * öteki, beriki, öbürkü). "gün" is left out: TDK lists only bugünkü, dünkü and öbürkü as
+ * harmonising, so it cannot confirm "o günkü" against "o günki".
+ */
+const TAKES_KI = [
+  'akşam',
+  'ay',
+  'bahar',
+  'beri',
+  'bugün',
+  'demin',
+  'dün',
+  'evvel',
+  'geçen',
+  'gece',
+  'güz',
+  'hafta',
+  'ilkbahar',
+  'karşı',
+  'kış',
+  'öbür',
+  'öğle',
+  'önce',
+  'öte',
+  'sabah',
+  'sene',
+  'sonbahar',
+  'sonra',
+  'şimdi',
+  'yarın',
+  'yaz',
+  'yıl',
+] as const;
+
 /** The built-in word exceptions. Later spreads win, so combined entries come last. */
 const DEFAULT_WORDS: Readonly<Record<string, LexiconEntry>> = {
   ...group(FRONT_HARMONY, { front: true }),
@@ -306,6 +347,7 @@ const DEFAULT_WORDS: Readonly<Record<string, LexiconEntry>> = {
   ...group(NON_SOFTENING, { soften: false }),
   ...group(VOWEL_DROP, { dropVowel: true }),
   ...group(DOUBLING, { doubleConsonant: true }),
+  ...group(TAKES_KI, { ki: true }),
   // Combinations.
   kalp: { front: true, soften: true },
   idrak: { front: true, soften: false },

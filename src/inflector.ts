@@ -61,6 +61,13 @@ function checkSupported(
       `"ki" directly after "${analysis.text}" is not supported; use ["locative", "ki"] (İstanbul'daki) or ["genitive", "ki"] (Ahmet'inki).`,
     );
   }
+  if (chain[0] === 'ki' && analysis.entry?.ki !== true) {
+    throw new InflectError(
+      'UNSUPPORTED',
+      `"ki" attaches directly only to time words such as akşam, yarın and bugün (akşamki, yarınki, bugünkü), not to "${analysis.text}". ` +
+        'Use ["locative", "ki"] (evdeki) or ["genitive", "ki"] (evinki), or mark the word with `{ ki: true }` in the lexicon.',
+    );
+  }
   if (options.compound === true) {
     const slots = chain.map((suffix) => specOf(suffix).slot);
     if (slots.includes('plural') || slots.includes('possessive')) {
@@ -100,14 +107,15 @@ function inflectAnalyzed(
   }
 
   const apostrophe = options.apostrophe ?? "'";
+  // Only the first suffix attached to the value itself can take the apostrophe; after a
+  // separate word (mı, ile) the rest attaches to that word: Ayşe midir.
   let attached = false;
   for (const part of parts) {
-    if (!part.separate && !attached) {
+    if (!attached) {
       attached = true;
       // TDK: the plural (and what follows it) takes no apostrophe on proper nouns: Ahmetler.
-      if (analysis.apostrophe && !(analysis.kind === 'proper' && part.suffix === 'plural')) {
-        written += apostrophe;
-      }
+      const plural = analysis.kind === 'proper' && part.suffix === 'plural';
+      if (!part.separate && analysis.apostrophe && !plural) written += apostrophe;
     }
     written += part.text;
   }

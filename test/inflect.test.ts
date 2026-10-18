@@ -122,6 +122,32 @@ describe('inflect', () => {
     expect(custom('C#', 'dative', { kind: 'common' })).toBe('C#a');
   });
 
+  it('keeps the vowel in reduplications (şehirden şehire)', () => {
+    expect(inflect('şehirden şehir', 'dative')).toBe('şehirden şehire');
+    expect(inflect('ağız ağız', 'dative')).toBe('ağız ağıza');
+    expect(inflect('Şehir şehir', 'dative', { kind: 'common' })).toBe('Şehir şehire');
+    expect(inflect('büyük şehir', 'dative')).toBe('büyük şehre');
+    expect(inflect('şehir', 'dative')).toBe('şehre');
+  });
+
+  it('attaches -ki directly only to words marked for it', () => {
+    expect(inflect('geçen yıl', 'ki')).toBe('geçen yılki');
+    expect(inflect('bu sabah', 'ki')).toBe('bu sabahki');
+    expect(codeOf(() => inflect('ev', 'ki'))).toBe('UNSUPPORTED');
+    expect(codeOf(() => inflect('kitap', ['ki', 'plural']))).toBe('UNSUPPORTED');
+    expect(codeOf(() => inflect('o gün', 'ki'))).toBe('UNSUPPORTED');
+    expect(() => inflect('ev', 'ki')).toThrow(/\["locative", "ki"\]/u);
+    const custom = createInflector({ lexicon: { words: { pazartesi: { ki: true } } } });
+    expect(custom.inflect('pazartesi', 'ki')).toBe('pazartesiki');
+  });
+
+  it('writes the copula on the question particle', () => {
+    expect(inflect('kitap', ['question', 'copula'])).toBe('kitap mıdır');
+    expect(inflect('Ayşe', ['question', 'copula'])).toBe('Ayşe midir');
+    expect(inflect('Ayşe', ['ile', 'question', 'copula'])).toBe('Ayşe ile midir');
+    expect(() => inflect('kitap', ['copula', 'question'])).toThrow(/\["question", "copula"\]/u);
+  });
+
   describe('errors', () => {
     it.each<[string, () => unknown, string]>([
       ['empty value', () => inflect('', 'dative'), 'EMPTY_VALUE'],
@@ -153,7 +179,9 @@ describe('inflect', () => {
       ['ki after accusative', () => inflect('ev', ['accusative', 'ki']), 'INVALID_SUFFIX_ORDER'],
       ['possessive after ki', () => inflect('ev', ['locative', 'ki', 'possessive']), 'INVALID_SUFFIX_ORDER'],
       ['suffix after ile', () => inflect('ev', ['ile', 'copula']), 'INVALID_SUFFIX_ORDER'],
-      ['suffix after question', () => inflect('ev', ['question', 'copula']), 'INVALID_SUFFIX_ORDER'],
+      ['question after copula', () => inflect('ev', ['copula', 'question']), 'INVALID_SUFFIX_ORDER'],
+      ['suffix after question', () => inflect('ev', ['question', 'plural']), 'INVALID_SUFFIX_ORDER'],
+
       ['ordinal after plural', () => inflect(5, ['plural', 'ordinal']), 'INVALID_SUFFIX_ORDER'],
       ['non-finite number', () => inflect(Number.NaN, 'dative'), 'INVALID_NUMBER'],
       ['number too large', () => inflect(10n ** 21n, 'dative'), 'OUT_OF_RANGE'],

@@ -170,6 +170,20 @@ export const lexical: readonly Section[] = [
     ],
   },
   {
+    rule: 'in reduplications the vowel of the second word does not drop',
+    source:
+      'TDK Yazım Kılavuzu, Ünlü Düşmesi 2 (ağız ağıza, burun buruna, omuz omuza; devirden devire, nesilden nesile, oğuldan oğula, şehirden şehire)',
+    cases: [
+      ['ağız ağız', 'dative', 'ağız ağıza'],
+      ['burun burun', 'dative', 'burun buruna'],
+      ['omuz omuz', 'dative', 'omuz omuza'],
+      ['devirden devir', 'dative', 'devirden devire'],
+      ['nesilden nesil', 'dative', 'nesilden nesile'],
+      ['oğuldan oğul', 'dative', 'oğuldan oğula'],
+      ['şehirden şehir', 'dative', 'şehirden şehire'],
+    ],
+  },
+  {
     rule: 'Arabic loans double their final consonant before a vowel-initial suffix',
     source:
       'TDK Yazım Kılavuzu, Ünsüz Türemesi (hak/hakkı, his/hissi, ret/reddi, şer/şerri, tıp/tıbbı, zam/zammı, zan/zannı); TDK Güncel Türkçe Sözlük',
@@ -199,8 +213,8 @@ export const lexical: readonly Section[] = [
     ],
   },
   {
-    rule: 'su takes y where other words take n or s',
-    source: 'TDK Güncel Türkçe Sözlük (su, -yu)',
+    rule: 'su becomes suy- before a vowel, a buffer or a linking vowel',
+    source: 'TDK Güncel Türkçe Sözlük (su, -yu); standard Turkish grammar (suyum, suyun, suyumuz, suyunuz)',
     cases: [
       ['su', 'accusative', 'suyu'],
       ['su', 'dative', 'suya'],
@@ -208,8 +222,22 @@ export const lexical: readonly Section[] = [
       ['su', 'possessive', 'suyu'],
       ['su', 'instrumental', 'suyla'],
       ['su', 'locative', 'suda'],
+      ['su', 'ablative', 'sudan'],
       ['su', 'plural', 'sular'],
+      ['su', 'copula', 'sudur'],
+      ['su', 'question', 'su mu'],
       ['su', ['possessive', 'dative'], 'suyuna'],
+      ['su', 'possessive1sg', 'suyum'],
+      ['su', 'possessive2sg', 'suyun'],
+      ['su', 'possessive1pl', 'suyumuz'],
+      ['su', 'possessive2pl', 'suyunuz'],
+      ['su', 'possessive3pl', 'suları'],
+      ['su', ['possessive1sg', 'dative'], 'suyuma'],
+      ['su', ['possessive1pl', 'ablative'], 'suyumuzdan'],
+      ['su', ['possessive2pl', 'accusative'], 'suyunuzu'],
+      ['su', ['plural', 'possessive1sg'], 'sularım'],
+      ['su', ['plural', 'accusative'], 'suları'],
+      ['temiz su', 'accusative', 'temiz suyu'],
     ],
   },
 ];

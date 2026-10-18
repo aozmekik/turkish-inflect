@@ -99,6 +99,7 @@ export interface InternalAnalysis extends Analysis {
 
 const LETTER = /\p{L}/u;
 const MARK = /\p{M}/u;
+const WHITESPACE = /\s/u;
 const DIGIT_BEFORE = /\d ?$/u;
 const SINGLE_LETTER = /^\p{L}\p{M}*$/u;
 
@@ -292,6 +293,19 @@ function analyzeDotted(text: string, lexicon: CompiledLexicon): InternalAnalysis
   return withReading(text, reading, 'abbreviation', lexicon);
 }
 
+/**
+ * Whether the word before `start` repeats the final word with a case suffix (şehirden şehir,
+ * ağız ağız). TDK Yazım Kılavuzu, Ünlü Düşmesi: in such reduplications the vowel of the second
+ * word does not drop (şehirden şehire, ağız ağıza).
+ */
+function isReduplication(text: string, start: number, token: string): boolean {
+  let end = start;
+  while (end > 0 && WHITESPACE.test(text.charAt(end - 1))) end--;
+  if (end === start) return false;
+  const previous = text.slice(lettersStart(text, end), end);
+  return previous !== '' && lowerWritten(previous).startsWith(lowerWritten(token));
+}
+
 function analyzeWord(
   text: string,
   token: string,
@@ -331,7 +345,10 @@ function analyzeWord(
         ? 'proper'
         : 'common';
   const common = valueKind === 'common';
-  const entry = lexicon.word(token, finalWord);
+  let entry = lexicon.word(token, finalWord);
+  if (common && entry?.dropVowel === true && isReduplication(text, tokenStart, token)) {
+    entry = { ...entry, dropVowel: false };
+  }
   return {
     text,
     kind: valueKind,

@@ -32,6 +32,18 @@ describe('render', () => {
     expect(render(template('lArI'), after('saat', true)).text).toBe('leri');
   });
 
+  it('gives su its y before a vowel, a buffer or a linking vowel only', () => {
+    const su = { ...after('su'), bufferY: true };
+    expect(render(template('(I)m'), su).text).toBe('yum');
+    expect(render(template('(n)In'), su).text).toBe('yun');
+    expect(render(template('(y)lA'), su).text).toBe('yla');
+    expect(render(template('I'), su).text).toBe('yu');
+    expect(render(template('DA'), su).text).toBe('da');
+    expect(render(template('lAr'), su).text).toBe('lar');
+    expect(render(template(' mI'), su).text).toBe(' mu');
+    expect(render(template(''), su).text).toBe('');
+  });
+
   it('reports the sound after the suffix', () => {
     expect(render(template('DA'), after('ev')).sound).toEqual({
       lastVowel: 'e',

@@ -41,7 +41,10 @@ export interface Sound {
   readonly voiceless: boolean;
   /** Palatal override: the next harmonising vowel is front (saat → saati). */
   readonly front: boolean;
-  /** The next buffer consonant is y whatever the template says (su → suyun). */
+  /**
+   * The word is "su": before a vowel, a buffer consonant or a linking vowel it gains a y and
+   * then ends in a consonant (suyu, suyun, suyum, suyla; but suda, sular).
+   */
   readonly bufferY: boolean;
 }
 
@@ -110,6 +113,14 @@ export interface Rendered {
   readonly sound: Sound;
 }
 
+/** Whether a template begins with something that needs a vowel or a buffer before it. */
+function opensWithVowel(segments: Template): boolean {
+  const first = segments[0];
+  if (first === undefined) return false;
+  if (first.kind === 'literal') return isVowel(first.text.charAt(0));
+  return first.kind !== 'D';
+}
+
 /** Realises a template after a word ending in `start`. */
 export function render(segments: Template, start: Sound): Rendered {
   let { lastVowel: vowel, endsInVowel, voiceless, front } = start;
@@ -126,10 +137,12 @@ export function render(segments: Template, start: Sound): Rendered {
       voiceless = isVoiceless(ch);
     }
   };
+  // su → suy-: suyu, suyun, suyum (the y replaces the buffer and blocks it).
+  if (start.bufferY && opensWithVowel(segments)) emit('y');
   for (const segment of segments) {
     switch (segment.kind) {
       case 'buffer':
-        if (endsInVowel) emit(start.bufferY ? 'y' : segment.letter);
+        if (endsInVowel) emit(segment.letter);
         break;
       case 'linking':
         if (!endsInVowel) emit(fourWay(vowel, front));
