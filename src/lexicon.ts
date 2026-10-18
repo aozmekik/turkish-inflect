@@ -105,15 +105,18 @@ function mark(target: Record<string, LexiconEntry>, words: readonly string[], en
  * Back-vowel loanwords whose final consonant is pronounced palatal, so suffixes are front.
  * TDK Yazım Kılavuzu, Büyük Ünlü Uyumu: alkol, hakikat, helal, idrak, kabul, kontrol,
  * protokol, saat, sadakat, santral, meçhul, mentol, sembol. The rest are confirmed by the
- * inflection hints in TDK Güncel Türkçe Sözlük.
+ * inflection hints in TDK Güncel Türkçe Sözlük (iptal, -li; ampul, -lü; şefkat, -ti).
  */
 const FRONT_HARMONY = [
   'alkol',
+  'ampul',
   'cemaat',
   'cemal',
   'celal',
+  'dijital',
   'dikkat',
   'emsal',
+  'etanol',
   'festival',
   'final',
   'gol',
@@ -125,19 +128,31 @@ const FRONT_HARMONY = [
   'hilal',
   'hol',
   'ideal',
+  'idol',
+  'ihlal',
   'ihmal',
+  'ihtilal',
   'ihtimal',
   'ikbal',
+  'ikmal',
+  'imal',
+  'intikal',
+  'iptal',
+  'istikbal',
   'istiklal',
+  'işgal',
   'itaat',
   'kabahat',
   'kabul',
   'kanaat',
   'kemal',
+  'kolesterol',
   'kontrol',
+  'kristal',
   'liberal',
   'lokal',
   'mahsul',
+  'meal',
   'meçhul',
   'menkul',
   'mentol',
@@ -158,7 +173,10 @@ const FRONT_HARMONY = [
   'seyahat',
   'sıhhat',
   'sinyal',
+  'spiral',
   'sual',
+  'şefkat',
+  'terminal',
   'timsal',
   'usul',
   'visal',
@@ -189,6 +207,7 @@ const SOFTENING = [
   'grup',
   'güç',
   'kap',
+  'klip',
   'kurt',
   'renk',
   'taç',
@@ -203,11 +222,20 @@ const SOFTENING = [
   'cihat',
   'çeşit',
   'damat',
+  'ecdat',
   'etüt',
   'evlat',
   'geçit',
+  'icat',
+  'iktisat',
+  'imdat',
   'inat',
+  'isnat',
+  'istimdat',
+  'istinat',
   'itikat',
+  'itimat',
+  'ittihat',
   'kağıt',
   'kanat',
   'kilit',
@@ -218,9 +246,13 @@ const SOFTENING = [
   'mevcut',
   'murat',
   'mürit',
+  'mürşit',
   'öğüt',
+  'periyot',
   'standart',
   'şahit',
+  'şerit',
+  'taahhüt',
   'taklit',
   'tehdit',
   'tevhit',
@@ -235,8 +267,8 @@ const SOFTENING = [
 ] as const;
 
 /**
- * Words of two or more syllables ending in p, ç or k that do not soften
- * (TDK: ahlak, evrak, hukuk, ittifak; the rest from TDK Güncel Türkçe Sözlük).
+ * Words of two or more syllables ending in p, ç or k that do not soften (TDK: ahlak, evrak,
+ * hukuk, ittifak; the rest are headwords of TDK Güncel Türkçe Sözlük without a softening hint).
  */
 const NON_SOFTENING = [
   'ahlak',
@@ -244,15 +276,25 @@ const NON_SOFTENING = [
   'emlak',
   'evrak',
   'hukuk',
+  'ilhak',
+  'infilak',
+  'istihkak',
+  'istintak',
   'ittifak',
+  'laptop',
+  'merak',
+  'mutlak',
+  'otostop',
   'prototip',
   'sandviç',
   'stereotip',
   'tahakkuk',
+  'tahkik',
   'tahrik',
   'tasdik',
   'tatbik',
   'tedarik',
+  'tefrik',
   'teşvik',
   'tetkik',
 ] as const;
@@ -268,6 +310,7 @@ const VOWEL_DROP = [
   'akis',
   'alın',
   'asıl',
+  'bahis',
   'bağır',
   'beniz',
   'beyin',
@@ -277,6 +320,7 @@ const VOWEL_DROP = [
   'cisim',
   'devir',
   'emir',
+  'fasıl',
   'fikir',
   'geniz',
   'göğüs',
@@ -288,13 +332,16 @@ const VOWEL_DROP = [
   'hüküm',
   'ilim',
   'isim',
+  'izin',
   'kabir',
   'kahır',
   'karın',
   'kasıt',
   'kayıp',
   'keşif',
+  'keyif',
   'kısım',
+  'küfür',
   'lütuf',
   'metin',
   'nabız',
@@ -302,6 +349,7 @@ const VOWEL_DROP = [
   'nakış',
   'nehir',
   'nesil',
+  'nesir',
   'nutuk',
   'oğul',
   'omuz',
@@ -312,7 +360,10 @@ const VOWEL_DROP = [
   'şahıs',
   'şehir',
   'şekil',
+  'şükür',
   'ufuk',
+  'vahiy',
+  'vakıf',
   'vakit',
   'vasıf',
   'zehir',
@@ -323,9 +374,24 @@ const VOWEL_DROP = [
 
 /**
  * Arabic loans whose final consonant doubles before a vowel-initial suffix.
- * TDK Yazım Kılavuzu, Ünsüz Türemesi: hak, his, ret, şer, tıp, zam, zan (and af).
+ * TDK Yazım Kılavuzu, Ünsüz Türemesi: hak, his, ret, şer, tıp, zam, zan (and af); the rest from
+ * TDK Güncel Türkçe Sözlük (fen, -nni; zem, -mmi; şık "option", -kkı).
  */
-const DOUBLING = ['af', 'hac', 'hak', 'hat', 'his', 'sır', 'şer', 'üs', 'zam', 'zan'] as const;
+const DOUBLING = [
+  'af',
+  'fen',
+  'hac',
+  'hak',
+  'hat',
+  'his',
+  'sır',
+  'şer',
+  'şık',
+  'üs',
+  'zam',
+  'zan',
+  'zem',
+] as const;
 
 /**
  * Words that take the adjectival -ki directly: time words (TDK Yazım Kılavuzu, -ki Eki:
@@ -377,16 +443,19 @@ function defaultWords(): Record<string, LexiconEntry> {
     // Combinations.
     kalp: { front: true, soften: true },
     idrak: { front: true, soften: false },
+    istimlak: { front: true, soften: false },
     iştirak: { front: true, soften: false },
     had: { front: true, doubleConsonant: true },
     mahal: { front: true, doubleConsonant: true },
     vaat: { front: true, soften: true },
+    cet: { soften: true, doubleConsonant: true },
     ret: { soften: true, doubleConsonant: true },
     tıp: { soften: true, doubleConsonant: true },
     zıt: { soften: true, doubleConsonant: true },
     ahit: { dropVowel: true, soften: true },
     akit: { dropVowel: true, soften: true },
     kayıt: { dropVowel: true, soften: true },
+    nakit: { dropVowel: true, soften: true },
     su: { bufferY: true },
     // Homographs written with a circumflex that differ from their plain twins.
     âdet: {},
@@ -401,7 +470,7 @@ function defaultWords(): Record<string, LexiconEntry> {
 /**
  * Built-in pronunciations. Upper-case abbreviations are read letter by letter unless listed
  * here (TDK Yazım Kılavuzu, Kısaltmalar: ASELSAN'da, BOTAŞ'ın, NATO'dan, UNESCO'ya; AGİK'in,
- * RTÜK'e, ÇUKOBİRLİK'e).
+ * CMUK'un, RTÜK'e, ÇUKOBİRLİK'e, FİSKOBİRLİK'in; İLESAM, TÖMER).
  * Lower-case symbols follow the full word (cm'yi, kg'dan, mm'den), as do abbreviations that
  * end in a period, which take their suffix without an apostrophe (Alm.dan, İng.yi, kr.un).
  * One-letter symbols (m, g) are only recognised right after a number ("5 m", "100g").
@@ -411,10 +480,13 @@ const DEFAULT_READINGS: Readonly<Record<string, string>> = {
   AGİK: 'agik',
   ASELSAN: 'aselsan',
   BOTAŞ: 'botaş',
+  CMUK: 'cmuk',
   COVID: 'kovid',
   ÇUKOBİRLİK: 'çukobirlik',
   FIFA: 'fifa',
+  FİSKOBİRLİK: 'fiskobirlik',
   HAVELSAN: 'havelsan',
+  İLESAM: 'ilesam',
   İŞKUR: 'işkur',
   MÜSİAD: 'müsiad',
   NASA: 'nasa',
@@ -426,6 +498,7 @@ const DEFAULT_READINGS: Readonly<Record<string, string>> = {
   RTÜK: 'rtük',
   TEKEL: 'tekel',
   TOKİ: 'toki',
+  TÖMER: 'tömer',
   TUSAŞ: 'tusaş',
   TÜBİTAK: 'tübitak',
   TÜİK: 'tüik',

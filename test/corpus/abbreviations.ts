@@ -61,6 +61,12 @@ export const abbreviations: readonly Section[] = [
       ['UNICEF', 'dative', "UNICEF'e"],
       ['NASA', 'genitive', "NASA'nın"],
       ['NATO', 'question', 'NATO mu'],
+      ['CMUK', 'genitive', "CMUK'un"],
+      ['TÜBİTAK', 'genitive', "TÜBİTAK'ın"],
+      ['ÇUKOBİRLİK', 'dative', "ÇUKOBİRLİK'e"],
+      ['FİSKOBİRLİK', 'genitive', "FİSKOBİRLİK'in"],
+      ['İLESAM', 'dative', "İLESAM'a"],
+      ['TÖMER', 'dative', "TÖMER'e"],
     ],
   },
   {

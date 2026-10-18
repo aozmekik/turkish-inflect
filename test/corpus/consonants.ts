@@ -144,6 +144,30 @@ export const consonants: readonly Section[] = [
     ],
   },
   {
+    rule: 'more -t words that soften, and a one-syllable -p word',
+    source:
+      'TDK Güncel Türkçe Sözlük inflection hints (icat, -dı; iktisat, -dı; itimat, -dı; imdat, -dı; istinat, -dı; isnat, -dı; ittihat, -dı; istimdat, -dı; ecdat, -dı; periyot, -du; taahhüt, -dü; mürşit, -di; şerit, -di; klip, -bi)',
+    cases: [
+      ['icat', 'accusative', 'icadı'],
+      ['iktisat', 'accusative', 'iktisadı'],
+      ['itimat', 'dative', 'itimada'],
+      ['imdat', 'accusative', 'imdadı'],
+      ['istinat', 'accusative', 'istinadı'],
+      ['isnat', 'accusative', 'isnadı'],
+      ['ittihat', 'genitive', 'ittihadın'],
+      ['istimdat', 'accusative', 'istimdadı'],
+      ['ecdat', 'possessive1pl', 'ecdadımız'],
+      ['periyot', 'accusative', 'periyodu'],
+      ['taahhüt', 'accusative', 'taahhüdü'],
+      ['taahhüt', 'possessive2pl', 'taahhüdünüz'],
+      ['mürşit', 'accusative', 'mürşidi'],
+      ['şerit', 'accusative', 'şeridi'],
+      ['şerit', 'locative', 'şeritte'],
+      ['klip', 'accusative', 'klibi'],
+      ['icat', 'locative', 'icatta'],
+    ],
+  },
+  {
     rule: 'one-syllable words keep their final consonant, except a listed few',
     source:
       'TDK Yazım Kılavuzu, Ünsüz Yumuşaması (ak/akı ... süt/sütü; but/budu, dip/dibi, gök/göğü, kap/kabı, kurt/kurdu, uç/ucu, yurt/yurdu; bant/bandı, bent/bendi, cilt/cildi, renk/rengi; tank/tankı)',
@@ -238,6 +262,26 @@ export const consonants: readonly Section[] = [
       ['tedarik', 'accusative', 'tedariki'],
       ['prototip', 'accusative', 'prototipi'],
       ['sandviç', 'accusative', 'sandviçi'],
+    ],
+  },
+  {
+    rule: 'more words of two or more syllables that keep their final consonant',
+    source:
+      'TDK Güncel Türkçe Sözlük: headwords without a softening hint (merak, infilak, istihkak, ilhak, mutlak, tahkik, tefrik, istintak, laptop, otostop)',
+    cases: [
+      ['merak', 'accusative', 'merakı'],
+      ['merak', 'dative', 'meraka'],
+      ['merak', 'possessive1sg', 'merakım'],
+      ['infilak', 'accusative', 'infilakı'],
+      ['istihkak', 'accusative', 'istihkakı'],
+      ['ilhak', 'accusative', 'ilhakı'],
+      ['mutlak', 'accusative', 'mutlakı'],
+      ['tahkik', 'accusative', 'tahkiki'],
+      ['tefrik', 'accusative', 'tefriki'],
+      ['istintak', 'accusative', 'istintakı'],
+      ['laptop', 'accusative', 'laptopu'],
+      ['laptop', 'dative', 'laptopa'],
+      ['otostop', 'accusative', 'otostopu'],
     ],
   },
   {
