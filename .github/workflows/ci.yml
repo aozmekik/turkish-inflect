@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are cancelled; every push to main is tested to the end.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -47,9 +48,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      # npm ci runs the prepare script, which builds dist/ for the examples.
       - run: npm ci
       - run: npm run coverage
-      - run: npm run build
       - run: npm run examples
 
   package:
@@ -61,7 +62,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # npm ci runs the prepare script, which builds dist/.
       - run: npm ci
-      - run: npm run build
       - run: npm run check:package
       - run: npm run size
