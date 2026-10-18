@@ -266,7 +266,7 @@ const QUESTION_ENDINGS = [
 ];
 
 /** Written forms of the particle that are also ordinary words: "Ali müdür" (Ali is the director). */
-const NOT_A_QUESTION: ReadonlySet<string> = new Set(['müdür']);
+const NOT_A_QUESTION: ReadonlySet<string> = /* @__PURE__ */ new Set(['müdür']);
 
 let questionForms: ReadonlyMap<string, Template> | undefined;
 

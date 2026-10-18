@@ -8,8 +8,7 @@ import { InflectError } from './errors.js';
 import { type Sound, type Template, render, template } from './phonology.js';
 import { describe } from './validate.js';
 
-/** Every suffix name accepted by `inflect`, `format` and friends. */
-export const SUFFIXES = [
+const SUFFIX_NAMES = [
   'plural',
   'accusative',
   'dative',
@@ -30,6 +29,9 @@ export const SUFFIXES = [
   'copula',
   'question',
 ] as const;
+
+/** Every suffix name accepted by `inflect`, `format` and friends (a frozen array). */
+export const SUFFIXES: typeof SUFFIX_NAMES = /* @__PURE__ */ Object.freeze(SUFFIX_NAMES);
 
 /**
  * A suffix name.
@@ -73,48 +75,48 @@ interface SuffixSpec {
 }
 
 const SPECS: Readonly<Record<CanonicalSuffix, SuffixSpec>> = {
-  ordinal: { slot: 'ordinal', template: template('(I)ncI') },
-  plural: { slot: 'plural', template: template('lAr') },
-  possessive1sg: { slot: 'possessive', template: template('(I)m') },
-  possessive2sg: { slot: 'possessive', template: template('(I)n') },
-  possessive3sg: { slot: 'possessive', template: template('(s)I'), setsPronominal: true },
-  possessive1pl: { slot: 'possessive', template: template('(I)mIz') },
-  possessive2pl: { slot: 'possessive', template: template('(I)nIz') },
-  possessive3pl: { slot: 'possessive', template: template('lArI'), setsPronominal: true },
+  ordinal: { slot: 'ordinal', template: /* @__PURE__ */ template('(I)ncI') },
+  plural: { slot: 'plural', template: /* @__PURE__ */ template('lAr') },
+  possessive1sg: { slot: 'possessive', template: /* @__PURE__ */ template('(I)m') },
+  possessive2sg: { slot: 'possessive', template: /* @__PURE__ */ template('(I)n') },
+  possessive3sg: { slot: 'possessive', template: /* @__PURE__ */ template('(s)I'), setsPronominal: true },
+  possessive1pl: { slot: 'possessive', template: /* @__PURE__ */ template('(I)mIz') },
+  possessive2pl: { slot: 'possessive', template: /* @__PURE__ */ template('(I)nIz') },
+  possessive3pl: { slot: 'possessive', template: /* @__PURE__ */ template('lArI'), setsPronominal: true },
   accusative: {
     slot: 'case',
-    template: template('(y)I'),
-    pronominal: template('nI'),
+    template: /* @__PURE__ */ template('(y)I'),
+    pronominal: /* @__PURE__ */ template('nI'),
   },
   dative: {
     slot: 'case',
-    template: template('(y)A'),
-    pronominal: template('nA'),
+    template: /* @__PURE__ */ template('(y)A'),
+    pronominal: /* @__PURE__ */ template('nA'),
   },
   locative: {
     slot: 'case',
-    template: template('DA'),
-    pronominal: template('nDA'),
+    template: /* @__PURE__ */ template('DA'),
+    pronominal: /* @__PURE__ */ template('nDA'),
   },
   ablative: {
     slot: 'case',
-    template: template('DAn'),
-    pronominal: template('nDAn'),
+    template: /* @__PURE__ */ template('DAn'),
+    pronominal: /* @__PURE__ */ template('nDAn'),
   },
-  genitive: { slot: 'case', template: template('(n)In') },
-  instrumental: { slot: 'case', template: template('(y)lA') },
-  ile: { slot: 'case', template: template(' ile'), separate: true },
-  ki: { slot: 'ki', template: template('ki'), setsPronominal: true },
-  question: { slot: 'question', template: template(' mI'), separate: true },
+  genitive: { slot: 'case', template: /* @__PURE__ */ template('(n)In') },
+  instrumental: { slot: 'case', template: /* @__PURE__ */ template('(y)lA') },
+  ile: { slot: 'case', template: /* @__PURE__ */ template(' ile'), separate: true },
+  ki: { slot: 'ki', template: /* @__PURE__ */ template('ki'), setsPronominal: true },
+  question: { slot: 'question', template: /* @__PURE__ */ template(' mI'), separate: true },
   // After the question particle the copula attaches to it: kitap mıdır, not kitaptır mı.
-  copula: { slot: 'copula', template: template('DIr') },
+  copula: { slot: 'copula', template: /* @__PURE__ */ template('DIr') },
 };
 
 /** After the plural, the 3rd-person plural possessive is just -ı (kitaplar + ları → kitapları). */
-const POSSESSIVE_3PL_AFTER_PLURAL = template('I');
+const POSSESSIVE_3PL_AFTER_PLURAL = /* @__PURE__ */ template('I');
 /** -ki follows vowel harmony only in bugünkü, dünkü, öbürkü (TDK Yazım Kılavuzu). */
-const KI_ROUNDED = template('kü');
-const KI_ROUNDED_WORDS: ReadonlySet<string> = new Set(['bugün', 'dün', 'öbür']);
+const KI_ROUNDED = /* @__PURE__ */ template('kü');
+const KI_ROUNDED_WORDS: ReadonlySet<string> = /* @__PURE__ */ new Set(['bugün', 'dün', 'öbür']);
 
 /** Position of each slot in a word; plural and case may appear again after -ki. */
 const ORDER: Readonly<Record<Slot, number>> = {
@@ -127,7 +129,7 @@ const ORDER: Readonly<Record<Slot, number>> = {
   copula: 8,
 };
 
-const KNOWN: ReadonlySet<string> = new Set(SUFFIXES);
+const KNOWN: ReadonlySet<string> = /* @__PURE__ */ new Set(SUFFIXES);
 
 const ORDER_HINT =
   'Suffixes combine in the order ordinal, plural, possessive, case, ki (after locative or genitive), plural, case, question, copula.';

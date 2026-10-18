@@ -252,7 +252,6 @@ describe('inflect', () => {
       ['suffix after ile', () => inflect('ev', ['ile', 'copula']), 'INVALID_SUFFIX_ORDER'],
       ['question after copula', () => inflect('ev', ['copula', 'question']), 'INVALID_SUFFIX_ORDER'],
       ['suffix after question', () => inflect('ev', ['question', 'plural']), 'INVALID_SUFFIX_ORDER'],
-
       ['ordinal after plural', () => inflect(5, ['plural', 'ordinal']), 'INVALID_SUFFIX_ORDER'],
       ['non-finite number', () => inflect(Number.NaN, 'dative'), 'INVALID_NUMBER'],
       ['number too large', () => inflect(10n ** 21n, 'dative'), 'OUT_OF_RANGE'],
@@ -348,7 +347,6 @@ describe('analyze', () => {
     ['(-%5', { text: '(-%5', kind: 'number', reading: 'eksi yüzde beş', apostrophe: true }],
     ['COVID-19', { text: 'COVID-19', kind: 'number', reading: 'on dokuz', apostrophe: true }],
     ['Bölüm.3', { text: 'Bölüm.3', kind: 'number', reading: 'üç', apostrophe: true }],
-
     ['(-5', { text: '(-5', kind: 'number', reading: 'eksi beş', apostrophe: true }],
   ] as const)('%s', (value, expected) => {
     expect(analyze(value)).toEqual(expected);
@@ -458,6 +456,11 @@ describe('createInflector', () => {
     expect(Object.isFrozen(DEFAULT_LEXICON.words)).toBe(true);
     expect(Object.isFrozen(DEFAULT_LEXICON.readings)).toBe(true);
     expect(Object.isFrozen(DEFAULT_LEXICON.words['saat'])).toBe(true);
+  });
+
+  it('exposes a frozen list of suffix names', () => {
+    expect(Object.isFrozen(SUFFIXES)).toBe(true);
+    expect(() => (SUFFIXES as unknown as string[]).push('x')).toThrow(TypeError);
   });
 
   it.each<[string, unknown]>([

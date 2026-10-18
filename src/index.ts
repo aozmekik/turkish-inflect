@@ -22,7 +22,7 @@ import type {
   ValueKind,
   WordKind,
 } from './analysis.js';
-import { createInflector } from './inflector.js';
+import { type Inflector, createInflector } from './inflector.js';
 import type { SuffixInput } from './suffixes.js';
 import type { TemplateValue, TemplateValues } from './template.js';
 
@@ -41,7 +41,14 @@ export { SUFFIXES, type Suffix, type SuffixInput } from './suffixes.js';
 export type { ValueWithOptions, TemplateValue, TemplateValues } from './template.js';
 export type { AbbreviationMode, Analysis, InflectOptions, InflectValue, ValueKind, WordKind };
 
-const defaultInflector = createInflector();
+let shared: Inflector | undefined;
+
+/** The inflector behind the top-level functions, created on first use so that importing only
+ * `toUpper` or `numberToWords` does not pull the lexicon into a bundle. */
+function defaultInflector(): Inflector {
+  shared ??= createInflector();
+  return shared;
+}
 
 /**
  * Adds one suffix, or a chain of suffixes, to a value.
@@ -68,7 +75,7 @@ const defaultInflector = createInflector();
  * ```
  */
 export function inflect(value: InflectValue, suffixes: SuffixInput, options?: InflectOptions): string {
-  return defaultInflector.inflect(value, suffixes, options);
+  return defaultInflector().inflect(value, suffixes, options);
 }
 
 /**
@@ -83,7 +90,7 @@ export function inflect(value: InflectValue, suffixes: SuffixInput, options?: In
  * ```
  */
 export function analyze(value: InflectValue, options?: InflectOptions): Analysis {
-  return defaultInflector.analyze(value, options);
+  return defaultInflector().analyze(value, options);
 }
 
 /**
@@ -103,7 +110,7 @@ export function analyze(value: InflectValue, options?: InflectOptions): Analysis
  * ```
  */
 export function format(template: string, values: TemplateValues, options?: InflectOptions): string {
-  return defaultInflector.format(template, values, options);
+  return defaultInflector().format(template, values, options);
 }
 
 /**
@@ -125,5 +132,5 @@ export function format(template: string, values: TemplateValues, options?: Infle
  * ```
  */
 export function tr(strings: TemplateStringsArray, ...values: readonly TemplateValue[]): string {
-  return defaultInflector.tr(strings, ...values);
+  return defaultInflector().tr(strings, ...values);
 }

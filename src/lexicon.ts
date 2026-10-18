@@ -548,10 +548,10 @@ function freezeLexicon(): DefaultLexicon {
  * The built-in lexicon, deeply frozen. Pass additions or overrides to `createInflector`; this
  * export is for inspecting what the defaults cover.
  */
-export const DEFAULT_LEXICON: DefaultLexicon = freezeLexicon();
+export const DEFAULT_LEXICON: DefaultLexicon = /* @__PURE__ */ freezeLexicon();
 
 /** One-letter symbols that are only read as units right after a number. */
-export const UNIT_AFTER_NUMBER_ONLY: ReadonlySet<string> = new Set(['g', 'm']);
+export const UNIT_AFTER_NUMBER_ONLY: ReadonlySet<string> = /* @__PURE__ */ new Set(['g', 'm']);
 
 /**
  * A compiled, immutable lexicon with lookup helpers.

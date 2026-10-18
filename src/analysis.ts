@@ -108,7 +108,7 @@ const LETTER = /\p{L}/u;
 const MARK = /\p{M}/u;
 const WHITESPACE = /\s/u;
 const SINGLE_LETTER = /^\p{L}\p{M}*$/u;
-const APOSTROPHES: ReadonlySet<string> = new Set(["'", '’']);
+const APOSTROPHES: ReadonlySet<string> = /* @__PURE__ */ new Set(["'", '’']);
 const SUPERSCRIPT_DIGITS: Readonly<Record<string, string>> = {
   '⁰': '0',
   '¹': '1',

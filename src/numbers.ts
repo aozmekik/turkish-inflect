@@ -18,8 +18,8 @@ const TENS = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş',
 const SCALES = ['', 'bin', 'milyon', 'milyar', 'trilyon', 'katrilyon', 'kentilyon'] as const;
 const MAX_DIGITS = SCALES.length * 3;
 
-const LOCATIVE = template('DA');
-const ORDINAL = template('(I)ncI');
+const LOCATIVE = /* @__PURE__ */ template('DA');
+const ORDINAL = /* @__PURE__ */ template('(I)ncI');
 
 /** A number given as a JavaScript number, a bigint, or a string in Turkish notation. */
 export type NumericInput = number | bigint | string;
