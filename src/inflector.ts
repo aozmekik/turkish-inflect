@@ -10,12 +10,14 @@ import {
   type InflectValue,
   type InternalAnalysis,
   analyzeValue,
+  textOf,
 } from './analysis.js';
 import { InflectError } from './errors.js';
 import { type Lexicon, compileLexicon } from './lexicon.js';
 import { startsWithVowel, vowelStem } from './phonology.js';
 import { type CanonicalSuffix, type SuffixInput, normalizeChain, renderChain, specOf } from './suffixes.js';
 import { type TemplateValue, type TemplateValues, createFormat, createTag } from './template.js';
+import { checkInflectable, checkObject, checkOptions } from './validate.js';
 
 /** Options that can be set once for every call of an {@link Inflector}. */
 export type InflectDefaults = Pick<InflectOptions, 'kind' | 'abbreviation' | 'apostrophe'>;
@@ -81,7 +83,6 @@ function inflectAnalyzed(
   chain: readonly CanonicalSuffix[],
   options: InflectOptions,
 ): string {
-  if (chain.length === 0) return analysis.text;
   checkSupported(chain, analysis, options);
   const { stem, entry } = analysis;
   // su → suyu, suyun: only written stems (common nouns) carry this irregularity.
@@ -128,16 +129,24 @@ function inflectAnalyzed(
  * ```
  */
 export function createInflector(config: InflectorConfig = {}): Inflector {
+  checkObject(config, 'the inflector configuration');
   const lexicon = compileLexicon(config.lexicon);
   const defaults: InflectOptions = config.defaults ?? {};
+  checkOptions(defaults);
 
   const inflect = (value: InflectValue, suffixes: SuffixInput, options: InflectOptions = {}): string => {
-    const merged = { ...defaults, ...options };
+    checkInflectable(value);
+    checkOptions(options);
     const chain = normalizeChain(suffixes);
+    // A value with no suffix is written as it is, even when it cannot be read aloud (C++, 🙂).
+    if (chain.length === 0) return textOf(value);
+    const merged = { ...defaults, ...options };
     return inflectAnalyzed(analyzeValue(value, merged, lexicon), chain, merged);
   };
 
   const analyze = (value: InflectValue, options: InflectOptions = {}): Analysis => {
+    checkInflectable(value);
+    checkOptions(options);
     const { text, kind, reading, apostrophe } = analyzeValue(value, { ...defaults, ...options }, lexicon);
     return { text, kind, reading, apostrophe };
   };

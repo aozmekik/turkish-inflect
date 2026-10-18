@@ -11,6 +11,8 @@
  * @module
  */
 
+import { checkString } from './validate.js';
+
 /** "I" followed by U+0307 COMBINING DOT ABOVE is a decomposed capital dotted I. */
 const LOWER_SPECIAL = /İ|[Iİ]/gu;
 
@@ -23,6 +25,7 @@ const LOWER_SPECIAL = /İ|[Iİ]/gu;
  * ```
  */
 export function toUpper(text: string): string {
+  checkString(text, 'the text');
   return text.replaceAll('i', 'İ').replaceAll('ı', 'I').toUpperCase();
 }
 
@@ -37,6 +40,7 @@ export function toUpper(text: string): string {
  * ```
  */
 export function toLower(text: string): string {
+  checkString(text, 'the text');
   return text.replace(LOWER_SPECIAL, (match) => (match === 'I' ? 'ı' : 'i')).toLowerCase();
 }
 
@@ -50,6 +54,7 @@ export function toLower(text: string): string {
  * ```
  */
 export function capitalize(text: string): string {
+  checkString(text, 'the text');
   const first = text.codePointAt(0);
   if (first === undefined) return '';
   const head = String.fromCodePoint(first);

@@ -3,6 +3,9 @@
  * need: the spoken form of the final word, whether the suffix takes an apostrophe, and for
  * common nouns where the written stem may change.
  *
+ * Every scan of the value runs in linear time: the end of the value is found by walking
+ * backwards, never with an end-anchored regular expression that could backtrack.
+ *
  * @module
  */
 
@@ -67,7 +70,10 @@ export type ValueKind = 'common' | 'proper' | 'abbreviation' | 'number' | 'lette
 
 /** The result of {@link analyze}: what the library believes about a value. */
 export interface Analysis {
-  /** The value as it will be written before any suffix (trimmed; numbers formatted). */
+  /**
+   * The value as it will be written before any suffix: trimmed and composed to Unicode NFC;
+   * numbers formatted with a decimal comma.
+   */
   readonly text: string;
   /** How the suffix is determined. */
   readonly kind: ValueKind;
@@ -91,8 +97,8 @@ export interface InternalAnalysis extends Analysis {
   readonly integer: boolean;
 }
 
-const TRAILING_LETTERS = /(?:\p{L}\p{M}*)+$/u;
-const DOTTED_TOKEN = /(?:\p{L}\p{M}*)+\.$/u;
+const LETTER = /\p{L}/u;
+const MARK = /\p{M}/u;
 const DIGIT_BEFORE = /\d ?$/u;
 const SINGLE_LETTER = /^\p{L}\p{M}*$/u;
 
@@ -102,6 +108,35 @@ function hasUpper(text: string): boolean {
 
 function hasLower(text: string): boolean {
   return toUpper(text) !== text;
+}
+
+/** The index of the code point that ends at `index` (one or two UTF-16 code units back). */
+function previousIndex(text: string, index: number): number {
+  const low = text.charCodeAt(index - 1);
+  if (index >= 2 && low >= 0xdc00 && low <= 0xdfff) {
+    const high = text.charCodeAt(index - 2);
+    if (high >= 0xd800 && high <= 0xdbff) return index - 2;
+  }
+  return index - 1;
+}
+
+/**
+ * Where the run of letters (each optionally followed by combining marks) that ends at `end`
+ * starts; `end` itself when there is none.
+ */
+function lettersStart(text: string, end: number): number {
+  let start = end;
+  let index = end;
+  while (index > 0) {
+    const before = previousIndex(text, index);
+    const ch = text.slice(before, index);
+    if (!MARK.test(ch)) {
+      if (!LETTER.test(ch)) break;
+      start = before;
+    }
+    index = before;
+  }
+  return start;
 }
 
 function finalWordOf(reading: string): string {
@@ -136,8 +171,15 @@ function letterReading(token: string): string {
   return names.join(' ');
 }
 
-function textOf(value: InflectValue): string {
-  if (typeof value === 'string') return value.trim();
+/**
+ * The value as written before any suffix: strings trimmed and composed to NFC (so that stem
+ * changes never split a letter from its combining mark), numbers formatted.
+ *
+ * @throws {@link InflectError} `INVALID_NUMBER` for a non-finite number.
+ * @internal
+ */
+export function textOf(value: InflectValue): string {
+  if (typeof value === 'string') return value.trim().normalize('NFC');
   return formatNumber(value);
 }
 
@@ -221,15 +263,14 @@ export function analyzeValue(
     };
   }
 
-  const token = TRAILING_LETTERS.exec(text)?.[0];
-  if (token === undefined) {
+  const tokenStart = lettersStart(text, text.length);
+  if (tokenStart === text.length) {
     throw new InflectError(
       'UNREADABLE',
       `Cannot tell how "${text}" ends when read aloud; pass the pronunciation with the \`reading\` option.`,
     );
   }
-  const tokenStart = text.length - token.length;
-  return analyzeWord(text, token, tokenStart, options, lexicon);
+  return analyzeWord(text, text.slice(tokenStart), tokenStart, options, lexicon);
 }
 
 function analyzeDotted(text: string, lexicon: CompiledLexicon): InternalAnalysis {
@@ -239,7 +280,8 @@ function analyzeDotted(text: string, lexicon: CompiledLexicon): InternalAnalysis
       `"${text}" is an ordinal written with a period, which takes no suffix (TDK: 8'inci, not 8.'inci). Inflect the number with the "ordinal" suffix instead.`,
     );
   }
-  const token = DOTTED_TOKEN.exec(text)?.[0];
+  const start = lettersStart(text, text.length - 1);
+  const token = start === text.length - 1 ? undefined : text.slice(start);
   const reading = token === undefined ? undefined : lexicon.reading(token);
   if (reading === undefined) {
     throw new InflectError(

@@ -9,6 +9,7 @@ import type { InflectOptions, InflectValue } from './analysis.js';
 import { InflectError } from './errors.js';
 import { type Sound, render } from './phonology.js';
 import { type CanonicalSuffix, type Suffix, normalizeChain, specOf } from './suffixes.js';
+import { checkObject, checkString, describe } from './validate.js';
 
 /** A template value with per-value options, e.g. `{ value: 'Kitap', kind: 'common' }`. */
 export interface ValueWithOptions extends InflectOptions {
@@ -29,12 +30,29 @@ export type InflectFunction = (
   options?: InflectOptions,
 ) => string;
 
-function unpack(value: TemplateValue, options: InflectOptions): [InflectValue, InflectOptions] {
-  if (typeof value === 'object') {
-    const { value: inner, ...own } = value;
-    return [inner, { ...options, ...own }];
+/**
+ * Splits a template value into the value and its own options.
+ *
+ * @param where - How to name the value in error messages.
+ * @throws {@link InflectError} `MISSING_VALUE` for `null` or `undefined`, `INVALID_ARGUMENT`
+ *   for an object without a `value`.
+ */
+function unpack(raw: unknown, options: InflectOptions, where: string): [InflectValue, InflectOptions] {
+  if (raw === null || raw === undefined) {
+    throw new InflectError('MISSING_VALUE', `${where} is ${String(raw)}.`);
   }
-  return [value, options];
+  if (typeof raw !== 'object') return [raw as InflectValue, options];
+  if (Array.isArray(raw) || !('value' in raw)) {
+    throw new InflectError(
+      'INVALID_ARGUMENT',
+      `${where} must be a string, number, bigint or { value, ...options }, got ${describe(raw)} without a \`value\`.`,
+    );
+  }
+  const { value, ...own } = raw as ValueWithOptions;
+  if ((value as unknown) === null || (value as unknown) === undefined) {
+    throw new InflectError('MISSING_VALUE', `${where} has a \`value\` of ${String(value)}.`);
+  }
+  return [value, { ...options, ...own }];
 }
 
 const PLACEHOLDER = /^\s*([A-Za-z_$][\w$]*)\s*(?::([^{}]*))?$/u;
@@ -48,6 +66,8 @@ export function createFormat(
   inflect: InflectFunction,
 ): (template: string, values: TemplateValues, options?: InflectOptions) => string {
   return (template, values, options = {}) => {
+    checkString(template, 'the template');
+    checkObject(values, 'the template values');
     let out = '';
     let index = 0;
     while (index < template.length) {
@@ -93,7 +113,7 @@ export function createFormat(
           `Empty suffix name in placeholder "{${template.slice(index + 1, close)}}".`,
         );
       }
-      const [value, merged] = unpack(raw, options);
+      const [value, merged] = unpack(raw, options, `The value of placeholder "{${name}}"`);
       out += inflect(value, suffixes as Suffix[], merged);
       index = close + 1;
     }
@@ -188,7 +208,7 @@ export function createTag(
     const literal = (index: number): string => strings[index] ?? strings.raw[index] ?? '';
     let out = literal(0);
     for (const [index, raw] of values.entries()) {
-      const [value, own] = unpack(raw, options);
+      const [value, own] = unpack(raw, options, `Placeholder #${String(index + 1)}`);
       let rest = literal(index + 1);
       let chain: CanonicalSuffix[] = [];
       let apostrophe: string | undefined;

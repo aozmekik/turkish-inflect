@@ -11,6 +11,7 @@
 
 import { InflectError } from './errors.js';
 import { attachToWord, template } from './phonology.js';
+import { checkOptions, describe } from './validate.js';
 
 const ONES = ['', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'] as const;
 const TENS = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'] as const;
@@ -72,6 +73,12 @@ export function formatNumber(value: number | bigint): string {
 }
 
 function parseNumber(input: NumericInput): ParsedNumber {
+  if (typeof input !== 'string' && typeof input !== 'number' && typeof input !== 'bigint') {
+    throw new InflectError(
+      'INVALID_ARGUMENT',
+      `Expected a number, bigint or numeric string, got ${describe(input)}.`,
+    );
+  }
   if (typeof input === 'bigint') {
     const negative = input < 0n;
     return { negative, integer: (negative ? -input : input).toString(), fraction: '' };
@@ -192,6 +199,7 @@ function parsedToWords(parsed: ParsedNumber, decimal: 'virgül' | 'tam'): string
  * ```
  */
 export function numberToWords(value: NumericInput, options: NumberToWordsOptions = {}): string {
+  checkOptions(options);
   return parsedToWords(parseNumber(value), options.decimal ?? 'virgül').join(' ');
 }
 
@@ -212,7 +220,7 @@ export function numberToWords(value: NumericInput, options: NumberToWordsOptions
  * ```
  */
 export function ordinal(value: NumericInput): string {
-  const parsed = parseNumber(typeof value === 'string' ? value.trim().replace(/(?<=\d)\.$/u, '') : value);
+  const parsed = parseNumber(typeof value === 'string' ? value.trim().replace(/(\d)\.$/u, '$1') : value);
   if (parsed.negative || !/^0*$/u.test(parsed.fraction)) {
     throw new InflectError(
       'INVALID_NUMBER',
@@ -232,7 +240,7 @@ function ordinalWord(word: string): string {
 
 /** How the numeral at the end of a value is read. */
 export interface NumeralReading {
-  /** Index in the text where the numeral (including any sign) starts. */
+  /** Index in the text where the numeral (including any sign and percent sign) starts. */
   readonly start: number;
   /** The words of the reading, e.g. ["iki", "bin", "yirmi", "altı"]. */
   readonly words: readonly string[];
@@ -240,7 +248,6 @@ export interface NumeralReading {
   readonly integer: boolean;
 }
 
-const TRAILING_NUMERAL = /\d(?:[\d.,:/]*\d)?$/u;
 const CLOCK_TIME = /^(\d{1,2})[.:](\d{2})$/u;
 const SEPARATOR_WORDS: Readonly<Record<string, string>> = { '.': 'nokta', ',': 'virgül', ':': 'iki nokta' };
 
@@ -283,31 +290,54 @@ function numberWords(text: string): string[] {
   return parsedToWords(parseNumber(text), 'virgül');
 }
 
+function isDigit(ch: string): boolean {
+  return ch >= '0' && ch <= '9';
+}
+
+/**
+ * Where the numeral that ends `text` starts: digits with ".", ",", ":" or "/" between them,
+ * found by a backward scan (linear time, unlike an end-anchored regular expression).
+ */
+function numeralStart(text: string): number {
+  let start = text.length;
+  while (start > 0 && (isDigit(text.charAt(start - 1)) || '.,:/'.includes(text.charAt(start - 1)))) start--;
+  while (!isDigit(text.charAt(start))) start++;
+  return start;
+}
+
+/** Whether a minus sign at `index` is a sign rather than a hyphen ("-5", "(-5", "%-5", not "COVID-19"). */
+function isSign(text: string, index: number): boolean {
+  const ch = text.charAt(index);
+  return (ch === '-' || ch === '−') && (index === 0 || /[\s%‰(]/u.test(text.charAt(index - 1)));
+}
+
 /**
  * Reads the numeral at the end of a value: "iPhone 15" → on beş, "%50" → yüzde elli,
- * "17.30" → on yedi otuz, "1/2" → bir bölü iki.
+ * "-%5" → eksi yüzde beş, "17.30" → on yedi otuz, "1/2" → bir bölü iki.
  *
  * @returns `undefined` when the text does not end in a digit.
  * @internal
  */
 export function readTrailingNumeral(text: string): NumeralReading | undefined {
-  const match = TRAILING_NUMERAL.exec(text);
-  if (match === null) return undefined;
-  let start = match.index;
-  const body = readNumeralBody(match[0]);
+  if (!isDigit(text.charAt(text.length - 1))) return undefined;
+  let start = numeralStart(text);
+  const body = readNumeralBody(text.slice(start));
   const { words } = body;
   let integer = body.integer;
-  const before = text.charAt(start - 1);
-  const beforeSign = text.charAt(start - 2);
-  if ((before === '-' || before === '−') && (start === 1 || /[\s%(]/u.test(beforeSign))) {
+  if (isSign(text, start - 1)) {
     start -= 1;
     words.unshift('eksi');
     integer = false;
   }
   const prefix = text.charAt(start - 1);
   if (prefix === '%' || prefix === '‰') {
+    start -= 1;
     words.unshift(prefix === '%' ? 'yüzde' : 'binde');
     integer = false;
+    if (isSign(text, start - 1)) {
+      start -= 1;
+      words.unshift('eksi');
+    }
   }
   return { start, words, integer };
 }

@@ -26,6 +26,42 @@ describe('inflect', () => {
     expect(inflect(3.5, [])).toBe('3,5');
   });
 
+  it('does not read a value that takes no suffix', () => {
+    expect(inflect('', [])).toBe('');
+    expect(inflect('   ', [])).toBe('');
+    expect(inflect('C++', [])).toBe('C++');
+    expect(inflect('Ayşe 😀', [])).toBe('Ayşe 😀');
+    expect(inflect('https://example.com/', [])).toBe('https://example.com/');
+    expect(inflect(1e21, [])).toBe('1000000000000000000000');
+    expect(inflect(10n ** 30n, [])).toBe(`1${'0'.repeat(30)}`);
+    expect(codeOf(() => inflect(Number.POSITIVE_INFINITY, []))).toBe('INVALID_NUMBER');
+  });
+
+  it('composes decomposed (NFD) input before changing the stem', () => {
+    expect(inflect('ağaç'.normalize('NFD'), 'accusative')).toBe('ağacı');
+    expect(inflect('ilaç'.normalize('NFD'), 'accusative')).toBe('ilacı');
+    expect(inflect('sevinç'.normalize('NFD'), 'accusative')).toBe('sevinci');
+    expect(inflect('göğüs'.normalize('NFD'), 'accusative')).toBe('göğsü');
+    expect(inflect('gönül'.normalize('NFD'), 'possessive')).toBe('gönlü');
+    expect(inflect('İstanbul'.normalize('NFD'), 'dative')).toBe("İstanbul'a");
+    expect(inflect('Çağlar'.normalize('NFD'), [])).toBe('Çağlar');
+    expect(analyze('Şule'.normalize('NFD')).text).toBe('Şule');
+  });
+
+  it('scans long values in linear time', () => {
+    // An end-anchored regular expression made these take seconds (quadratic backtracking);
+    // a linear scan takes a few milliseconds. The bound leaves a wide margin for slow CI machines.
+    const inputs = ['a'.repeat(100_000) + '!', '1'.repeat(100_000) + '!', '1.'.repeat(50_000) + '!'];
+    for (const input of inputs) {
+      const started = performance.now();
+      expect(codeOf(() => inflect(input, 'dative'))).toBe('UNREADABLE');
+      expect(performance.now() - started).toBeLessThan(1000);
+    }
+    const started = performance.now();
+    expect(inflect(`${'çok '.repeat(50_000)}uzun kitap`, 'dative')).toMatch(/uzun kitaba$/u);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   it('trims surrounding whitespace', () => {
     expect(inflect('  Ayşe\n', 'dative')).toBe("Ayşe'ye");
   });
@@ -125,6 +161,43 @@ describe('inflect', () => {
       expect(codeOf(run)).toBe(code);
     });
 
+    // Calls from JavaScript that the types reject.
+    const untyped = inflect as (...args: unknown[]) => string;
+    const untypedAnalyze = analyze as (...args: unknown[]) => unknown;
+    it.each<[string, () => unknown]>([
+      ['undefined value', () => untyped(undefined, 'dative')],
+      ['null value', () => untyped(null, 'dative')],
+      ['object value', () => untyped({}, 'dative')],
+      ['undefined suffixes', () => untyped('Ayşe', undefined)],
+      ['numeric suffix', () => untyped('Ayşe', 3)],
+      ['non-string suffix in a chain', () => untyped('Ayşe', ['dative', 1])],
+      ['unknown kind', () => untyped('Ali', 'dative', { kind: 'foo' })],
+      ['unknown abbreviation mode', () => untyped('NATO', 'dative', { abbreviation: 'spell' })],
+      ['non-string reading', () => untyped('Ali', 'dative', { reading: 1 })],
+      ['non-boolean compound', () => untyped('Ali', 'dative', { compound: 'yes' })],
+      ['non-string apostrophe', () => untyped('Ali', 'dative', { apostrophe: 0 })],
+      ['options that are not an object', () => untyped('Ali', 'dative', 'proper')],
+      ['null options', () => untyped('Ali', 'dative', null)],
+      ['analyze without a value', () => untypedAnalyze()],
+      ['analyze with bad options', () => untypedAnalyze('Ali', { kind: 'person' })],
+    ])('rejects %s with INVALID_ARGUMENT', (_, run) => {
+      expect(codeOf(run)).toBe('INVALID_ARGUMENT');
+    });
+
+    it('names the problem in INVALID_ARGUMENT messages', () => {
+      expect(() => untyped(undefined, 'dative')).toThrow(
+        'Expected a string, number or bigint to inflect, got undefined.',
+      );
+      expect(() => untyped('Ali', 'dative', { kind: 'foo' })).toThrow(
+        'Invalid option kind: "foo". Expected one of: auto, proper, common.',
+      );
+      expect(() => untyped('Ali', 'dative', { kind: 1 })).toThrow('Invalid option kind: a number.');
+      expect(() => untyped('Ali', ['dative', 1])).toThrow('an array with non-string items');
+      expect(() => untyped('Ali', 'dative', [])).toThrow(
+        'Expected the options to be an object, got an array.',
+      );
+    });
+
     it('explains the failure in the message', () => {
       expect(() => inflect('ev', ['dative', 'plural'])).toThrow(/cannot follow "dative"/u);
       expect(() => inflect('C++', 'dative')).toThrow(/`reading` option/u);
@@ -171,7 +244,12 @@ describe('analyze', () => {
       { text: '25:00', kind: 'number', reading: 'yirmi beş iki nokta sıfır sıfır', apostrophe: true },
     ],
     ['‰5', { text: '‰5', kind: 'number', reading: 'binde beş', apostrophe: true }],
-    ['-%5', { text: '-%5', kind: 'number', reading: 'yüzde beş', apostrophe: true }],
+    ['-%5', { text: '-%5', kind: 'number', reading: 'eksi yüzde beş', apostrophe: true }],
+    ['%-5', { text: '%-5', kind: 'number', reading: 'yüzde eksi beş', apostrophe: true }],
+    ['(-%5', { text: '(-%5', kind: 'number', reading: 'eksi yüzde beş', apostrophe: true }],
+    ['COVID-19', { text: 'COVID-19', kind: 'number', reading: 'on dokuz', apostrophe: true }],
+    ['Bölüm.3', { text: 'Bölüm.3', kind: 'number', reading: 'üç', apostrophe: true }],
+
     ['(-5', { text: '(-5', kind: 'number', reading: 'eksi beş', apostrophe: true }],
   ] as const)('%s', (value, expected) => {
     expect(analyze(value)).toEqual(expected);

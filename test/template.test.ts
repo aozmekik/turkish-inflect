@@ -48,6 +48,30 @@ describe('format', () => {
     expect(format('{{literal}} {name:dative} }}', { name: 'Ali' })).toBe("{literal} Ali'ye }");
   });
 
+  it('fills plain placeholders with values that cannot be read aloud', () => {
+    expect(format('Ad: {name}', { name: '' })).toBe('Ad: ');
+    expect(format('Dil: {lang}', { lang: 'C++' })).toBe('Dil: C++');
+    expect(format('Durum: {s}', { s: '🙂' })).toBe('Durum: 🙂');
+    expect(format('Site: {u}', { u: 'https://example.com/' })).toBe('Site: https://example.com/');
+    expect(format('Ad: {name}', { name: 'Ayşe 😀' })).toBe('Ad: Ayşe 😀');
+    // Values are trimmed with or without a suffix, so both placeholders print the same name.
+    expect(format('[{n}] [{n:dative}]', { n: '  Ali  ' })).toBe("[Ali] [Ali'ye]");
+  });
+
+  it.each<[string, unknown, unknown, string]>([
+    ['a null value', '{a}', { a: null }, 'MISSING_VALUE'],
+    ['a null value with suffixes', '{a:dative}', { a: null }, 'MISSING_VALUE'],
+    ['a value object without a value', '{a:dative}', { a: { kind: 'common' } }, 'INVALID_ARGUMENT'],
+    ['a value object with a null value', '{a:dative}', { a: { value: null } }, 'MISSING_VALUE'],
+    ['an array value', '{a}', { a: ['Ali'] }, 'INVALID_ARGUMENT'],
+    ['a boolean value', '{a}', { a: true }, 'INVALID_ARGUMENT'],
+    ['null values', '{a}', null, 'INVALID_ARGUMENT'],
+    ['a template that is not a string', 5, {}, 'INVALID_ARGUMENT'],
+  ])('rejects %s', (_, template, values, code) => {
+    const untyped = format as (...args: unknown[]) => string;
+    expect(() => untyped(template, values)).toThrow(expect.objectContaining({ code }));
+  });
+
   it.each([
     ['{name', 'TEMPLATE_SYNTAX'],
     ['name}', 'TEMPLATE_SYNTAX'],
@@ -120,6 +144,21 @@ describe('tr', () => {
     expect(tr`${2026}'da ${'İzmir'} mı?`).toBe("2026'da İzmir mi?");
     expect(tr`${'ev'}de mi?`).toBe('evde mi?');
     expect(tr`${'Ali'} mimar`).toBe('Ali mimar');
+  });
+
+  it('rejects null and missing interpolations', () => {
+    const untyped = tr as (strings: TemplateStringsArray, ...values: unknown[]) => string;
+    expect(() => untyped`${null}'e`).toThrow(expect.objectContaining({ code: 'MISSING_VALUE' }));
+    expect(() => untyped`${undefined}`).toThrow('Placeholder #1 is undefined.');
+    expect(() => untyped`${{ kind: 'common' }}'e`).toThrow(
+      expect.objectContaining({ code: 'INVALID_ARGUMENT' }),
+    );
+  });
+
+  it('writes values that take no suffix unchanged', () => {
+    expect(tr`Dil: ${'C++'}`).toBe('Dil: C++');
+    expect(tr`Not: ${''}`).toBe('Not: ');
+    expect(tr`Toplam: ${1e21}`).toBe('Toplam: 1000000000000000000000');
   });
 
   it('keeps the apostrophe the template uses', () => {

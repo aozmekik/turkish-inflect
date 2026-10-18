@@ -9,7 +9,9 @@
  * - `INVALID_SUFFIX_ORDER`: the suffixes cannot be combined in the requested order.
  * - `UNSUPPORTED`: the combination is grammatical but deliberately not supported.
  * - `TEMPLATE_SYNTAX`: a template passed to `format` or `tr` is malformed.
- * - `MISSING_VALUE`: a template placeholder has no corresponding value.
+ * - `MISSING_VALUE`: a template placeholder has no value, or its value is `null` or `undefined`.
+ * - `INVALID_ARGUMENT`: an argument has the wrong type or an option an unknown value (a call
+ *   from JavaScript that the TypeScript types would have rejected).
  */
 export type InflectErrorCode =
   | 'EMPTY_VALUE'
@@ -20,10 +22,12 @@ export type InflectErrorCode =
   | 'INVALID_SUFFIX_ORDER'
   | 'UNSUPPORTED'
   | 'TEMPLATE_SYNTAX'
-  | 'MISSING_VALUE';
+  | 'MISSING_VALUE'
+  | 'INVALID_ARGUMENT';
 
 /**
- * Thrown when a value or template cannot be inflected correctly.
+ * The only error the library throws: a value or template cannot be inflected correctly, or an
+ * argument is invalid.
  *
  * The library never guesses silently when it knows its answer would be wrong; it throws
  * this error instead so that the caller can decide on a fallback.

@@ -6,6 +6,7 @@
 
 import { InflectError } from './errors.js';
 import { type Sound, type Template, render, template } from './phonology.js';
+import { describe } from './validate.js';
 
 /** Every suffix name accepted by `inflect`, `format` and friends. */
 export const SUFFIXES = [
@@ -116,14 +117,24 @@ export function specOf(suffix: CanonicalSuffix): SuffixSpec {
   return SPECS[suffix];
 }
 
+/** Accepts a suffix name or an array of them; anything else is an `INVALID_ARGUMENT`. */
+function suffixList(input: unknown): readonly string[] {
+  if (typeof input === 'string') return [input];
+  if (Array.isArray(input) && input.every((name) => typeof name === 'string')) return input;
+  throw new InflectError(
+    'INVALID_ARGUMENT',
+    `Expected a suffix name or an array of suffix names, got ${describe(input)}${Array.isArray(input) ? ' with non-string items' : ''}.`,
+  );
+}
+
 /**
  * Resolves aliases and checks that the suffixes can follow each other:
  * ordinal → plural → possessive → case → ki → plural → case → copula → question.
  *
- * @throws {@link InflectError} `INVALID_SUFFIX` or `INVALID_SUFFIX_ORDER`.
+ * @throws {@link InflectError} `INVALID_SUFFIX`, `INVALID_SUFFIX_ORDER` or `INVALID_ARGUMENT`.
  */
 export function normalizeChain(input: SuffixInput): CanonicalSuffix[] {
-  const list: readonly string[] = typeof input === 'string' ? [input] : input;
+  const list = suffixList(input);
   const chain: CanonicalSuffix[] = [];
   let position = -1;
   let afterKi = false;

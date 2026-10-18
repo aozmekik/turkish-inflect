@@ -180,6 +180,68 @@ describe('properties', () => {
       { numRuns: 2000 },
     );
   });
+
+  it('never throws anything but InflectError, whatever the arguments', () => {
+    const untypedInflect = inflect as (...args: unknown[]) => unknown;
+    const untypedFormat = format as (...args: unknown[]) => unknown;
+    const untypedTr = tr as (strings: TemplateStringsArray, ...values: unknown[]) => unknown;
+    const untypedWords = numberToWords as (...args: unknown[]) => unknown;
+    const untypedCasing = [toUpper, toLower, capitalize] as ((...args: unknown[]) => unknown)[];
+    const suffixes = fc.oneof(fc.constantFrom(...ATTACHED, 'ki', 'ordinal', 'question'), fc.anything());
+    const templates = fc.oneof(
+      fc.constantFrom('{x}', '{x:dative}', '{x:locative+ki}', '{{x}} {x:plural}', '{x', '}'),
+      fc.string(),
+      fc.anything(),
+    );
+    const markers = fc.constantFrom('', "'e", "'nda", 'ler', 'li', ' mi?', ' misin', "'xyz", ' mimar');
+    fc.assert(
+      fc.property(
+        fc.anything(),
+        suffixes,
+        fc.anything(),
+        templates,
+        markers,
+        (value, suffix, options, template, marker) => {
+          const strings = Object.assign(['<', marker], { raw: ['<', marker] });
+          for (const run of [
+            () => untypedInflect(value, suffix, options),
+            () => untypedFormat(template, { x: value }, options),
+            () => untypedFormat(template, value),
+            () => untypedTr(strings, value),
+            () => untypedWords(value, options),
+            ...untypedCasing.map((casing) => () => casing(value)),
+          ]) {
+            try {
+              run();
+            } catch (error) {
+              expect(error).toBeInstanceOf(InflectError);
+            }
+          }
+        },
+      ),
+      { numRuns: 1000 },
+    );
+  });
+
+  it('decomposed (NFD) input gives the same result as composed input', () => {
+    const turkish = fc.string({
+      unit: fc.constantFrom(...Array.from('abcçdefgğhıijklmnoöprsştuüvyzÇĞİÖŞÜâîû ')),
+      minLength: 1,
+      maxLength: 10,
+    });
+    fc.assert(
+      fc.property(turkish, fc.constantFrom(...ATTACHED), (text, suffix) => {
+        const outcome = (input: string): string => {
+          try {
+            return inflect(input, suffix);
+          } catch (error) {
+            return error instanceof InflectError ? error.code : 'other';
+          }
+        };
+        expect(outcome(text.normalize('NFD'))).toBe(outcome(text.normalize('NFC')));
+      }),
+    );
+  });
 });
 
 const UNITS: Readonly<Record<string, bigint>> = {
