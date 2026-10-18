@@ -1,7 +1,7 @@
 {
   "name": "turkish-inflect",
   "version": "0.1.0",
-  "description": "Grammatically correct Turkish suffixes for dynamic values in UI strings and i18n, following the TDK spelling guide.",
+  "description": "Turkish suffixes for dynamic values in UI strings and i18n, following the TDK spelling guide.",
   "keywords": [
     "turkish",
     "turkce",

@@ -59,10 +59,11 @@ function defaultInflector(): Inflector {
  *
  * @param value - A word or phrase, a number, or a numeral in Turkish notation ("1.000.000").
  * @param suffixes - A suffix name, or names in the order they attach, e.g. `['locative', 'ki']`.
+ *   With an empty array the value is returned as written (trimmed, NFC) without being read.
  * @param options - How to read the value; see {@link InflectOptions}.
  * @returns The inflected text.
  * @throws {@link InflectError} when the value is empty or unreadable, a suffix is unknown,
- *   or the chain is ungrammatical.
+ *   the chain is ungrammatical, or an argument has the wrong type (`INVALID_ARGUMENT`).
  *
  * @example
  * ```ts
@@ -95,7 +96,9 @@ export function analyze(value: InflectValue, options?: InflectOptions): Analysis
 
 /**
  * Fills a template whose placeholders name a value and, optionally, suffixes joined by `+`.
- * Write `{{` and `}}` for literal braces.
+ * Write `{{` and `}}` for literal braces. Names are identifiers in any script, optionally
+ * joined by dots (`{şehir}`, `{user.name}`, a single key). A placeholder without suffixes writes
+ * its value as it is, so it accepts values that cannot be read aloud ("C++", an emoji).
  *
  * @param template - Text with `{name}` or `{name:suffix}` or `{name:suffix+suffix}` placeholders.
  * @param values - Values by name; give `{ value, ...options }` to set options for one value.
@@ -107,6 +110,7 @@ export function analyze(value: InflectValue, options?: InflectOptions): Analysis
  * format('{name:dative} bir mesaj gönderildi', { name: 'Ayşe' }); // "Ayşe'ye bir mesaj gönderildi"
  * format('{city:locative+ki} ofis', { city: 'İzmir' }); // "İzmir'deki ofis"
  * format('{category:locative}', { category: { value: 'Elektronik', kind: 'common' } }); // "Elektronikte"
+ * format('Dil: {lang}', { lang: 'C++' }); // "Dil: C++"
  * ```
  */
 export function format(template: string, values: TemplateValues, options?: InflectOptions): string {
@@ -117,10 +121,12 @@ export function format(template: string, values: TemplateValues, options?: Infle
  * Tagged template that corrects the suffix written right after each interpolation.
  *
  * Write the suffix as it would appear for any sample value, with or without an apostrophe
- * ('e, 'ye, 'a ... all mean the dative); it is re-inflected for the actual value. A following
- * question particle (" mi") is adjusted too. Recognised suffixes: accusative, dative,
- * locative, ablative, genitive, instrumental, 3rd-person possessive, plural, ki, ordinal and
- * copula, and their combinations ('daki, 'lerden). An ambiguous -ı/-i is read as accusative.
+ * ('e, 'ye, 'a ... all mean the dative); it is re-inflected for the actual value. Recognised:
+ * the case suffixes, plural, possessives of every person, ki, ordinal and copula, and their
+ * combinations ('daki, 'lerden, ınızdan); a first suffix with the pronominal n ('ndan) marks the
+ * value as a compound. A following question particle is adjusted too, with its person and tense
+ * endings (" mi", " misin", " miydi"). Ambiguous forms are read as accusative (-ı) and genitive
+ * (-ın). Letters with a vowel glued to a value that are not suffixes throw `TEMPLATE_SYNTAX`.
  *
  * @example
  * ```ts
@@ -129,6 +135,8 @@ export function format(template: string, values: TemplateValues, options?: Infle
  * tr`${'Ayşe'}'e mesaj gönderildi`; // "Ayşe'ye mesaj gönderildi"
  * tr`${'kitap'}'ı okudum`; // "kitabı okudum"
  * tr`${2026}'da ${'İzmir'} mı?`; // "2026'da İzmir mi?"
+ * tr`${'Kurtuluş Savaşı'}'ndan sonra`; // "Kurtuluş Savaşı'ndan sonra"
+ * tr`${'Bolu'} misiniz?`; // "Bolu musunuz?"
  * ```
  */
 export function tr(strings: TemplateStringsArray, ...values: readonly TemplateValue[]): string {

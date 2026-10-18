@@ -33,18 +33,24 @@ Option 3. The defaults are chosen so that the exception lists stay short:
   soften (kanat, geçit, umut, metot, standart) are listed;
 - everything else follows the regular rules.
 
-The lexicon (215 word entries in 0.1.0) lists the exceptions to those defaults, each taken from
-the TDK spelling guide or confirmed against the dictionary's inflection hint. An opt-in check,
-`npm run check:tdk`, compares the accusative the library produces for every lexicon word and
-every common noun in the test corpus with the dictionary's hint. `createInflector({ lexicon })`
-adds or overrides entries, and `DEFAULT_LEXICON` exposes the built-in lists.
+The lexicon (299 word entries in 0.1.0: 272 inflection exceptions and 27 words that take -ki
+directly) lists the exceptions to those defaults, each taken from the TDK spelling guide or
+confirmed against the dictionary's inflection hint. An opt-in check, `npm run check:tdk`,
+compares the accusative the library produces for every lexicon word and every common noun in the
+test corpus with the dictionary (a word without a hint must come out regular), and reports the
+agreement on a held-out list of everyday and UI nouns that was written without looking at the
+lexicon. `createInflector({ lexicon })` adds or overrides entries, and `DEFAULT_LEXICON` exposes
+the built-in lists.
 
 ## Consequences
 
-- The package stays small: under 9 KiB minified and gzipped, lexicon included (README.md, Size).
+- The package stays small: about 11 KiB minified and gzipped with everything imported, lexicon
+  included (README.md, Size).
 - Words outside the lexicon fall back to the heuristics and can be wrong; this is documented
   under Limitations and fixable per application without a release.
 - Homographs get one entry (boyun → boynu "neck", not boy-un "your height"); the reading of
   the more common noun was chosen.
 - The TDK check needs network access and is not part of CI; it is a maintenance tool for when
-  the lexicon changes.
+  the lexicon changes. Agreement on words the author chose says little about unseen words, which
+  is why the held-out figure is reported separately, from its first run, before its mismatches
+  were added to the lexicon.
